@@ -5,7 +5,8 @@
 
 - 分支：`mods/main`（工作分支），`main`（跟随 upstream，只做 fast-forward）
 - upstream：`https://github.com/aseprite/aseprite.git`
-- 最后同步的 upstream commit：`35c35e645`（Possible fix for crash using theme w/missing layout selector icon）
+- 最后同步的 upstream commit：`375989a61`（Fix crash using Export Sprite Sheet from a sprite w/selection）
+- 最后同步日期：2026-09-10（合并 38 个提交，**零冲突**，见 §18）
 - 最后更新本文档：2026-07-27
 
 ---
@@ -40,7 +41,8 @@
 | **S10** | **[src/psd/decoder.cpp](../src/psd/decoder.cpp)** | PSD bug 修复 A，见 §12。⚠️ **这是 submodule（aseprite/psd 独立仓库）**，需单独 fork 跟踪 | 中 | ✅ |
 | S11 | [theme.xml](../data/extensions/aseprite-theme/theme.xml) + [dark/theme.xml](../data/extensions/aseprite-theme/dark/theme.xml) | `<fonts>` 块换成 Zfull-GB 像素字体（照搬官方发行版），见 §13 | 中 | ✅ |
 | S12 | [timeline.cpp](../src/app/ui/timeline/timeline.cpp) | 表头缩略图开关按钮 `PART_HEADER_THUMBNAILS`，见 §3 的 P9~P12 | 高 | ✅ |
-| S13 | [CMakeLists.txt](../CMakeLists.txt) `:89` | `ENABLE_I18N_STRINGS` 默认 `off`→`on`，启用多语言，见 §15 | 低 | ✅ |
+| S13 | [data/strings/](../data/strings/) | 提交官方发布的 23 种语言（`ENABLE_I18N_STRINGS` 保持官方默认 off），见 §15 | 低 | ✅ |
+| **S14** | [src/app/CMakeLists.txt](../src/app/CMakeLists.txt) | 给 `dio-lib` 补 `-DENABLE_PSD`，修上游缺陷，见 §18.3 | 中 | ✅ |
 
 ### 我们自己的文件（无冲突风险，续）
 
@@ -655,3 +657,70 @@ Aseprite 用 Skia/GPU 合成，**普通 GDI 截屏抓到全黑**。必须用
 | 状态栏提示（P7） | ✅ `Layer 'GreenBar' -- Ctrl+click to select its content (...)` |
 | **换帧后缩略图刷新（P8）** | ✅ 红块位置随帧变化；帧 2 无 cel 的图层变空白 |
 | Lua 脚本引擎（插件支持） | ✅ `-b --script` 正常执行 |
+
+
+---
+
+## 18. 首次 upstream 同步实测（2026-09-10）
+
+`35c35e645` → `375989a61`，**38 个提交，约 7 周**。
+
+### 18.1 结果：零冲突 ✅
+接缝最小化策略经受住了第一次真实同步。上游对我们接缝文件的改动情况：
+
+| 接缝文件 | 上游改动次数 |
+|---|---|
+| `src/app/ui/timeline/timeline.cpp`（12 个改动点，最大接缝） | **0** |
+| `src/app/file/psd_format.cpp` | **0** |
+| `data/extensions/aseprite-theme/theme.xml` ×2 | **0** |
+| 根 `CMakeLists.txt` / `src/CMakeLists.txt` / `.gitignore` | **0** |
+| `src/psd` submodule 指针 | **没动** |
+| `src/app/CMakeLists.txt` | 2（git 自动合并成功） |
+
+### 18.2 流程（已验证可用）
+```
+# 1. submodule 先提交（它最脆弱，游离改动会被 submodule update 冲掉）
+cd src/psd && git add -A && git commit && cd ../..
+# 2. 主仓库按逻辑分组提交
+git add ... && git commit
+# 3. 合并
+git fetch upstream && git merge upstream/main
+```
+⚠️ **合并前工作区必须干净**。我们和上游都改了 `src/app/CMakeLists.txt`，
+脏工作区会让 merge 直接拒绝。
+
+### 18.3 ★同步中发现的上游缺陷（S14）★
+
+上游 `443209de5 Avoid registering extensions for disabled formats` 给
+[src/dio/detect_format.cpp](../src/dio/detect_format.cpp) 加了：
+```cpp
+#ifdef ENABLE_PSD
+  if (ext == "psd" || ext == "psb") return FileFormat::PSD_IMAGE;
+#endif
+```
+但 CMake 里**只补了 WebP 的定义**：
+```cmake
+target_compile_definitions(dio-lib PUBLIC -DENABLE_WEBP)   # 有
+if(ENABLE_PSD)
+  target_compile_definitions(app-lib PUBLIC -DENABLE_PSD)  # 只给了 app-lib
+endif()
+```
+`detect_format.cpp` 属于 **dio-lib**，拿不到 `ENABLE_PSD` →
+**即使 `ENABLE_PSD=ON`，PSD 文件也完全不被识别**。
+上游因为默认 `off` 所以没暴露。已加 `target_compile_definitions(dio-lib PUBLIC -DENABLE_PSD)`。
+
+> 📌 **教训**：同步后不能只看"编译过了"就算完。
+> 上游给某个特性加编译期守卫时，要确认**所有**用到该守卫的 target 都拿到了宏。
+
+### 18.4 另一个坑：`bin/data/strings.git` 陈旧产物
+关掉 `ENABLE_I18N_STRINGS` 后，`build/bin/data/strings.git/` **不会自动删除**，
+而 `Strings::availableLanguages()` 同时扫描 `strings/` 和 `strings.git/`
+→ 那 21 种未发布语言又回来了。需手动 `rm -rf build/bin/data/strings.git`
+（或 `run.cmd --clean`）。
+
+### 18.5 同步后验证清单
+- [x] 编译通过
+- [x] PSD 仍能识别并正确导入（尺寸/中文名/可见性）
+- [x] 语言数 = 23
+- [ ] 缩略图列 / Ctrl+单击 GUI 复验
+- [ ] `tests/` 回归
