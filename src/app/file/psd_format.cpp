@@ -15,6 +15,10 @@
 #include "doc/slice.h"
 #include "doc/sprite.h"
 #include "psd/psd.h"
+// MODS: seam S3 -- see docs/MODDING_NOTES.md
+#ifdef ENABLE_MODS
+  #include "app/mods/file/psd_encoder.h"
+#endif
 
 #include <string> // MODS
 
@@ -112,7 +116,18 @@ class PsdFormat : public FileFormat {
 
   dio::FileFormat onGetDioFormat() const override { return dio::FileFormat::PSD_IMAGE; }
 
-  int onGetFlags() const override { return FILE_SUPPORT_LOAD; }
+  int onGetFlags() const override
+  {
+    // MODS: seam S3 -- saving is implemented now. RGB/RGBA/GRAY/GRAYA/INDEXED
+    // are all converted to 8-bit RGBA on the way out, which is what the writer
+    // produces; FRAMES is absent because a PSD holds one image.
+    return FILE_SUPPORT_LOAD
+#ifdef ENABLE_MODS
+           | FILE_SUPPORT_SAVE | FILE_SUPPORT_LAYERS | FILE_SUPPORT_RGB | FILE_SUPPORT_RGBA |
+           FILE_SUPPORT_GRAY | FILE_SUPPORT_GRAYA | FILE_SUPPORT_INDEXED
+#endif
+      ;
+  }
 
   bool onLoad(FileOp* fop) override;
   bool onSave(FileOp* fop) override;
@@ -190,6 +205,11 @@ public:
     // MODS: any record counts, including the group dividers -- see onBeginImage.
     m_sawLayerRecords = true;
 
+    // MODS: linkNewCel() places every cel at 0,0; the record says where it
+    // really goes. Kept here because the cel is created later, while reading
+    // this record's channel data.
+    m_currentOrigin = gfx::Point(layerRecord.left, layerRecord.top);
+
     if (layerRecord.isOpenGroup()) {
       LayerGroup* layerGroup = new LayerGroup(m_sprite);
       if (m_groups.empty())
@@ -226,6 +246,11 @@ public:
           m_layerGroup = m_sprite->root();
 
         createNewLayer(layerName);
+        // MODS: apply the record's own properties here, while we still know
+        // which record this layer came from. See onLayersAndMask() below.
+        static_cast<LayerImage*>(m_currentLayer)
+          ->setBlendMode(psd_blendmode_to_ase(layerRecord.blendMode));
+        m_currentLayer->setOpacity(layerRecord.opacity);
         m_layerHasTransparentChannel = hasTransparency(layerRecord.channels.size());
       }
       // MODS: a same-named layer without a cel at frame 0 used to crash here on
@@ -314,22 +339,18 @@ public:
   // Emitted when all layers and their masks have been processed
   void onLayersAndMask(const psd::LayersInformation& layersInfo) override
   {
-    if (layersInfo.layers.size() == m_layers.size()) {
-      for (int i = 0; i < m_layers.size(); ++i) {
-        const psd::LayerRecord& layerRecord = layersInfo.layers[i];
-
-        LayerImage* layer = static_cast<LayerImage*>(m_layers[i]);
-        layer->setBlendMode(psd_blendmode_to_ase(layerRecord.blendMode));
-
-        for (size_t i = 0; i < m_sprite->totalFrames(); ++i) {
-          Cel* cel = layer->cel(frame_t(i));
-          if (cel) {
-            cel->setOpacity(layerRecord.opacity);
-            cel->setPosition(gfx::Point(layerRecord.left, layerRecord.top));
-          }
-        }
-      }
-    }
+    // MODS: this used to pair layersInfo.layers[i] with m_layers[i] and copy
+    // the blend mode and cel placement across. The two lists do not line up:
+    // layersInfo holds every record, including the divider and folder records
+    // of each group, while m_layers holds image layers only. The guard below
+    // made that harmless rather than wrong -- as soon as the file had a single
+    // group the sizes differed and nothing was applied at all, so grouped PSDs
+    // imported with every blend mode and layer opacity lost.
+    //
+    // Those are set in onBeginLayer() now, where the record and the layer it
+    // produced are both in hand. Cel positions are already set from the same
+    // record when the cel is linked.
+    (void)layersInfo;
   }
 
   void onImageScanline(const psd::ImageData& img,
@@ -406,7 +427,7 @@ private:
     if (!image)
       return;
     std::unique_ptr<Cel> cel(new doc::Cel(frame_t(0), image));
-    cel->setPosition(0, 0);
+    cel->setPosition(m_currentOrigin); // MODS: was hard-coded to 0,0
     static_cast<LayerImage*>(layer)->addCel(cel.release());
   }
 
@@ -468,7 +489,8 @@ private:
   uint32_t m_activeFrameIndex;
   PixelFormat m_pixelFormat;
   std::vector<doc::Layer*> m_layers;
-  bool m_sawLayerRecords = false; // MODS
+  bool m_sawLayerRecords = false;       // MODS
+  gfx::Point m_currentOrigin = gfx::Point(0, 0); // MODS
   std::vector<doc::LayerGroup*> m_groups;
   std::vector<psd::FrameInformation> m_framesInfo;
   Palette m_palette;
@@ -514,7 +536,28 @@ bool PsdFormat::onLoad(FileOp* fop)
 
 bool PsdFormat::onSave(FileOp* fop)
 {
+#ifdef ENABLE_MODS
+  // MODS: seam S3 -- the encoder lives in src/app/mods/file/psd_encoder.cpp.
+  base::FileHandle handle(base::open_file_with_exception_sync_on_close(fop->filename(), "wb"));
+
+  const Sprite* sprite = fop->document()->sprite();
+  std::string error;
+  if (!mods::encode_psd(handle.get(), sprite, fop->roi().fromFrame(), error)) {
+    fop->setError(error.c_str());
+    return false;
+  }
+
+  // A PSD holds a single image, so anything past the first frame is dropped.
+  // Say so rather than letting an animation quietly lose everything but one
+  // frame.
+  if (sprite->totalFrames() > 1) {
+    fop->setIncompatibilityError(
+      "The .psd format stores one image, so only the current frame was saved.");
+  }
+  return true;
+#else
   return false;
+#endif
 }
 
 } // namespace app

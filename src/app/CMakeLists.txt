@@ -182,6 +182,7 @@ if(ENABLE_MODS)
   endif()
   target_sources(app-lib PRIVATE
     mods/commands/cmd_palette_bars.cpp
+    mods/file/psd_encoder.cpp
     mods/i18n/retranslate.cpp
     mods/tools/tool_opacity.cpp
     mods/ui/layer_thumbnail.cpp

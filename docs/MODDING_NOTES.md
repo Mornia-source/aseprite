@@ -31,7 +31,7 @@
 |---|---|---|---|---|
 | S1 | [CMakeLists.txt](../CMakeLists.txt) `:95` | `ENABLE_PSD` 默认 `off`→`on`；新增 `ENABLE_MODS` option | 低 | ✅ |
 | S2 | [src/app/CMakeLists.txt](../src/app/CMakeLists.txt) `:158` | 加入 `mods/` 源文件 + `-DENABLE_MODS` | 低 | ✅ |
-| S3 | [src/app/file/psd_format.cpp](../src/app/file/psd_format.cpp) `:65,:439` | flags 加 `FILE_SUPPORT_SAVE\|LAYERS\|RGB\|RGBA`；`onSave` 转调 `mods::psd_encode()` | 低 | ☐ |
+| S3 | [src/app/file/psd_format.cpp](../src/app/file/psd_format.cpp) | flags 加 SAVE/LAYERS/RGB/RGBA/GRAY/GRAYA/INDEXED；`onSave` 转调 `mods::encode_psd()`，见 §30 | 低 | ✅ |
 | S4 | [src/app/ui/timeline/timeline.cpp](../src/app/ui/timeline/timeline.cpp) | **重灾区**，见 §3 逐点清单 | **高** | ✅ |
 | S5 | [src/app/commands/commands_list.h](../src/app/commands/commands_list.h) | 注册 `SelectLayerBounds` 命令（可选，供 Lua 调用） | 低 | ☐ |
 | S6 | [data/gui.xml](../data/gui.xml) | 菜单项 + 快捷键（可选） | 中 | ☐ |
@@ -1334,3 +1334,47 @@ zip_pred   : 校验 256 像素  不符 0  ✓
 > 漏掉最后那个 4 字节会让 decoder 读到垃圾并抛 `Unexpected opacity for mask`。
 
 回归：真实 PS 文件（RLE+Raw）、带图层组的 PSD、异常文件报错路径 —— 均正常。
+
+
+---
+
+## 30. PSD 导出（接缝 S3，2026-09-10）
+
+`src/app/mods/file/psd_encoder.{h,cpp}`。帧策略按早先约定：**只导出当前帧**。
+
+### 30.1 写出的内容
+| 项 | 说明 |
+|---|---|
+| 格式 | 8 位 RGB（4 通道 RGBA），任何源色彩模式都转成它 |
+| 图层 | 与 Aseprite 一一对应；**图层组**写成"分隔符(lsct=3) → 子层 → 具名折叠记录(lsct=1/2)" |
+| 名称 | Pascal 字符串 **+ `luni` 块（UTF-16BE）** —— 中文名只能靠后者往返 |
+| 混合模式 | 反向映射表（`psd_blendmode_to_ase` 的逆） |
+| 不透明度 | `layer.opacity * cel.opacity / 255`（PSD 没有 per-cel 不透明度） |
+| 可见性 | flags 的 bit 1 |
+| 压缩 | 全部 RLE（PackBits），图层通道与合成图都是 |
+| 多帧 | 用 `setIncompatibilityError()` 告知"只保存了当前帧"，不静默丢弃 |
+
+### 30.2 ★写 PSD 时的三个坑★
+1. **全局图层蒙版信息段不可省** —— 图层与蒙版段的结构是
+   `[layer info 长度][layer info][全局蒙版信息长度]`。漏掉最后那个 4 字节，
+   读取方会一路读进后面的字节，报 `Unexpected opacity for mask`。
+2. **必须写 `luni`** —— Pascal 字符串是未指定代码页的，非 ASCII 名字只有
+   靠 `luni` 才能往返（这正是我们在 §12.3 修好读取的那个块）。
+3. **PackBits 的字面量长度** —— 遇到连续 3 个相同字节才切回 run，
+   否则短 run 反而更费空间。
+
+### 30.3 顺带修好的导入缺陷（§12.6.1 的兑现）
+`onLayersAndMask` 原先按索引把 `layersInfo.layers[i]` 配对 `m_layers[i]`：
+前者含组记录、后者只有图像层，**只要文件里有一个组，数量就对不上**，
+被 `size()==size()` 整块跳过 → **带组的 PSD 混合模式和图层不透明度全丢**。
+
+改法：在 `onBeginLayer` 里**当场**应用（那时记录和它产生的图层都在手上），
+不再事后按索引猜。同时 `linkNewCel()` 把 cel 位置硬设成 (0,0)，
+改为记住当前记录的左上角。
+
+### 30.4 验证
+往返测试：造一个含**图层组、中文名、50% 不透明度的 MULTIPLY 图层、隐藏层**的精灵
+→ 导出 PSD → 用 Python 解析字节确认写对（`blend=mul opacity=128 flags=0x02`）
+→ 再导入 → 属性全部恢复 → **合成结果逐像素比对：384 像素完全一致**。
+
+回归：真实 PS 文件、ZIP 文件、带组 PSD 均正常。
