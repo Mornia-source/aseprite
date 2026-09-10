@@ -4,9 +4,29 @@
         <author name="David Capello" url="https://davidcapello.com/"/>
         <author name="Ilija Melentijevic" url="https://ilkke.net/"/>
     </authors>
+    <!-- MODS: seam S11 -- matches what the official Aseprite release ships.
+         Zfull-GB.ttf is Zpix (最像素), a pixel-perfect font that covers CJK, so
+         Latin and Chinese share one font at one size with antialiasing off.
+         The stock bitmap font (aseprite_font.png) has no CJK glyphs, which made
+         Chinese fall through to a 14px system TrueType font: oversized,
+         antialiased and clipped by the row height. -->
     <fonts>
-        <font id="default" font="Aseprite"/>
-        <font id="mini" font="Aseprite Mini" mnemonics="off"/>
+        <!-- Zfull-GB covers Latin, Greek, Cyrillic, kana and CJK (99.6% of the
+             CJK block) but has no Hangul, Arabic, Thai or Hebrew glyphs at all.
+             Those still render correctly and still look like pixels, and no
+             <fallback> element is needed for it: the Skia shaper substitutes
+             fonts per character through SkFontMgr / DirectWrite
+             (laf/text/skia_text_blob_shaper.cpp), using fonts already installed
+             in the OS. The substitute inherits this font's size and the
+             antialias="false" below, so glyphs stay aliased, same size, same
+             baseline. Verified by removing the fallback: Korean was unchanged. -->
+        <font name="Zfull-GB"
+              type="truetype"
+              antialias="false"
+              file="./Zfull-GB.ttf">
+        </font>
+        <font id="default" font="Zfull-GB" size="10"/>
+        <font id="mini" font="Zfull-GB" size="10"/>
     </fonts>
     <dimensions>
         <dim id="scrollbar_size" value="12"/>

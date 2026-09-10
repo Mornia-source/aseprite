@@ -5,9 +5,16 @@
         <author name="Ilija Melentijevic" url="https://ilkke.net/"/>
         <author name="Nicolas Desilets" url="https://twitter.com/MapleGecko"/>
     </authors>
+    <!-- MODS: seam S11 -- see the light theme's theme.xml for the rationale. -->
     <fonts>
-        <font id="default" font="Aseprite"/>
-        <font id="mini" font="Aseprite Mini" mnemonics="off"/>
+        <!-- No <fallback> needed; see the light theme's theme.xml. -->
+        <font name="Zfull-GB"
+              type="truetype"
+              antialias="false"
+              file="./Zfull-GB.ttf">
+        </font>
+        <font id="default" font="Zfull-GB" size="10"/>
+        <font id="mini" font="Zfull-GB" size="10"/>
     </fonts>
     <dimensions>
         <dim id="scrollbar_size" value="12"/>
