@@ -47,6 +47,7 @@
 | S16 | [color_bar.h](../src/app/ui/color_bar.h) + [color_bar.cpp](../src/app/ui/color_bar.cpp) | 把调色板色条插到调色板上方，见 §20 | 中 | ✅ |
 | S17 | [commands_list.h](../src/app/commands/commands_list.h) | 注册 `ShowPaletteBars` 命令 | 低 | ✅ |
 | S18 | [data/gui.xml](../data/gui.xml) + [en.ini](../data/strings/en.ini) + [zh_Hans.ini](../data/strings/zh_Hans.ini) | 视图菜单项 + 字符串 | 中 | ✅ |
+| S19 | [skin_theme.cpp](../src/app/ui/skin/skin_theme.cpp) | 萨卡兹语的字体替换（2 处接缝），见 §22 | 中 | ✅ |
 
 ### 我们自己的文件（无冲突风险，续）
 
@@ -904,3 +905,49 @@ Aseprite 由 Igara Studio S.A. 以 **EULA** 授权，**不是**开源许可：
 
 即"自己编译自用/备份"允许，**分发编译产物给他人是明文禁止的**。
 `README.txt` 里附了这段声明和官方购买链接。
+
+
+---
+
+## 22. 萨卡兹语（整活功能，接缝 S19）
+
+在语言列表里加一个 **`Sakarz 萨卡兹语`**：文本用**英文原文**，靠**换字体**把拉丁字母
+显示成《明日方舟》卡兹戴尔文字。
+
+### 22.1 做法
+| 组成 | 内容 |
+|---|---|
+| `data/strings/sarkaz.ini` | en.ini 的逐字复制，只改 `[_] display_name` |
+| `data/mods/fonts/EndfieldByButan.ttf` | 14.2 KB，**238 个码位，完整覆盖可打印 ASCII**（字母+数字+标点） |
+| 接缝 S19 | 语言为 `sarkaz` 时，把主题字体换成该字体 |
+
+**语言显示名从 ini 的 `[_] display_name` 读取**
+（[strings.cpp:71](../src/app/i18n/strings.cpp:71)），不需要改代码。
+
+### 22.2 ★接缝位置选得好★
+[skin_theme.cpp](../src/app/ui/skin/skin_theme.cpp) 里**上游本来就有**
+"用户自定义字体覆盖主题字体"的逻辑（`pref.theme.font()` / `miniFont()`）。
+我们的覆盖紧跟其后，且**只在用户没有显式设置字体时**生效
+—— 用户的字体选择永远优先。改动只有 include + 一个 `#ifdef` 块。
+
+### 22.3 字体选择的演进
+| 字体 | 大小 | 码位 | 结果 |
+|---|---|---|---|
+| ~~Sarkaz.ttf~~ | 4.7 KB | 54 | 仅 A-Z/a-z。数字标点回退系统字体，**数值保持可读** |
+| **EndfieldByButan.ttf** | 14.2 KB | 238 | 全 ASCII。**数字也变成异世界文字**，数值框不可读 —— 沉浸感更强 |
+
+⚠️ **退路**：两种字体都不含 CJK，所以语言名里的 `萨卡兹语` 四个汉字会经
+Skia 自动替换（§13.5）用系统字体渲染 —— 界面全变成异世界文字后，
+仍能靠这四个汉字在语言下拉里找回来。**这是有意为之，别把显示名改成纯拉丁。**
+
+### 22.4 像素化
+`FontData::setAntialias(false)` + `FontHinting::Normal`。
+实测菜单栏文本区**只有 2 种颜色**（纯黑 + 背景色），边缘为硬像素，
+与主题的点阵字体观感一致。
+
+### 22.5 切换方式
+`编辑 > 偏好设置 > 常规 > Language`，或改
+`%APPDATA%\Asepriteseprite.ini` 的 `[general] language = sarkaz`。
+
+> 📌 换 data/ 下的文件后要 `run.cmd --reconfigure`（glob 在 configure 时求值，§13.3），
+> 且**旧文件不会从 `build/bin` 自动删除** —— 换字体时需手动清理，否则会混进打包。

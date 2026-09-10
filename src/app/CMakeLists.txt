@@ -180,7 +180,8 @@ if(ENABLE_MODS)
     mods/commands/cmd_palette_bars.cpp
     mods/tools/tool_opacity.cpp
     mods/ui/layer_thumbnail.cpp
-    mods/ui/palette_bars.cpp)
+    mods/ui/palette_bars.cpp
+    mods/ui/sarkaz_font.cpp)
 endif()
 
 # Extras
