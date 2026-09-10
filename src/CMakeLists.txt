@@ -152,29 +152,21 @@ if(ENABLE_I18N_STRINGS AND GIT_FOUND)
   list(APPEND out_data_files ${DATA_OUTPUT_DIR}/strings.git/en.ini)
 endif()
 
-add_custom_command(
-  OUTPUT ${DATA_OUTPUT_DIR}/README.md
-  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../README.md ${DATA_OUTPUT_DIR}/README.md
-  MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/../README.md)
-list(APPEND out_data_files ${DATA_OUTPUT_DIR}/README.md)
-
-add_custom_command(
-  OUTPUT ${DATA_OUTPUT_DIR}/AUTHORS.md
-  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../AUTHORS.md ${DATA_OUTPUT_DIR}/AUTHORS.md
-  MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/../AUTHORS.md)
-list(APPEND out_data_files ${DATA_OUTPUT_DIR}/AUTHORS.md)
-
-add_custom_command(
-  OUTPUT ${DATA_OUTPUT_DIR}/EULA.txt
-  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../EULA.txt ${DATA_OUTPUT_DIR}/EULA.txt
-  MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/../EULA.txt)
-list(APPEND out_data_files ${DATA_OUTPUT_DIR}/EULA.txt)
-
-add_custom_command(
-  OUTPUT ${DATA_OUTPUT_DIR}/docs/LICENSES.md
-  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../docs/LICENSES.md ${DATA_OUTPUT_DIR}/docs/LICENSES.md
-  MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/../docs/LICENSES.md)
-list(APPEND out_data_files ${DATA_OUTPUT_DIR}/docs/LICENSES.md)
+# MODS: seam S8 -- see docs/MODDING_NOTES.md
+# These files are pure packaging inputs (copied verbatim into data/). This fork
+# keeps some of them deleted from the working tree, so make each copy optional
+# instead of a hard configure-time error.
+foreach(_mods_doc README.md AUTHORS.md EULA.txt docs/LICENSES.md)
+  if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../${_mods_doc})
+    add_custom_command(
+      OUTPUT ${DATA_OUTPUT_DIR}/${_mods_doc}
+      COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../${_mods_doc} ${DATA_OUTPUT_DIR}/${_mods_doc}
+      MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/../${_mods_doc})
+    list(APPEND out_data_files ${DATA_OUTPUT_DIR}/${_mods_doc})
+  else()
+    message(STATUS "MODS: skipping absent data file ${_mods_doc}")
+  endif()
+endforeach()
 
 add_custom_target(copy_data DEPENDS clone_strings ${out_data_files})
 

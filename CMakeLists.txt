@@ -86,13 +86,14 @@ option(ENABLE_TRIAL_MODE   "Compile the trial version" off)
 option(ENABLE_DRM          "Compile the DRM-enabled version (e.g. for automatic updates)" off)
 option(ENABLE_STEAM        "Compile with Steam library" off)
 option(ENABLE_DEVMODE      "Compile vesion for developers" off)
-option(ENABLE_I18N_STRINGS "Clone i18n strings repo (https://github.com/aseprite/strings) to bin/data/strings.git" off)
+option(ENABLE_I18N_STRINGS "Clone i18n strings repo (https://github.com/aseprite/strings) to bin/data/strings.git" off)  # MODS: keep upstream default. The 23 languages the official release ships are committed in data/strings/ instead; cloning the repo would add ~21 more that upstream does not ship.
 option(FULLSCREEN_PLATFORM "Enable fullscreen by default" off)
 option(ENABLE_CLANG_TIDY   "Enable static analysis" off)
 option(ENABLE_CCACHE       "Use CCache to improve recompilation speed (optional)" on)
 option(ENABLE_SENTRY       "Use Sentry SDK to report crashes" off)
 option(ENABLE_WEBP         "Enable support to load/save .webp files" on)
-option(ENABLE_PSD          "Enable experimental support for .psd files" off)
+option(ENABLE_PSD          "Enable experimental support for .psd files" on)  # MODS: upstream default is off
+option(ENABLE_MODS         "Enable private fork modifications (see docs/MODDING_NOTES.md)" on)  # MODS: added
 option(ENABLE_DESKTOP_INTEGRATION  "Enable desktop integration modules" off)
 option(ENABLE_QT_THUMBNAILER       "Enable kde5/qt5 thumnailer" off)
 set(CUSTOM_WEBSITE_URL "" CACHE STRING "Enable custom local webserver to check updates")

@@ -162,6 +162,13 @@ if(ENABLE_PSD)
     file/psd_format.cpp)
 endif()
 
+# MODS: private fork modifications -- see docs/MODDING_NOTES.md (seam S2)
+if(ENABLE_MODS)
+  target_compile_definitions(app-lib PUBLIC -DENABLE_MODS)
+  target_sources(app-lib PRIVATE
+    mods/ui/layer_thumbnail.cpp)
+endif()
+
 # Extras
 if(ENABLE_DEVMODE)
   target_compile_definitions(app-lib PUBLIC -DENABLE_DEVMODE)
