@@ -1153,9 +1153,11 @@ REQ: /update?xml=1&inits=263&exits=262
 （[app_menus.cpp:791](../src/app/app_menus.cpp:791) 用它设置 `m_helpMenuitem`）。
 
 ### 26.2 关于对话框（S24）
-官方内容**原样保留**（标题、作者/译者/开源项目链接、Igara 版权、官网），
-下方用分隔线隔开我们自己的部分：私有构建声明、新增功能摘要、
+官方内容**原样保留**（标题、作者/译者链接、Igara 版权、官网），
+下方用分隔线隔开我们自己的部分：私有构建声明、
 **与 Igara Studio 无从属关系**的声明、EULA 与购买正版提示、本构建源码链接。
+
+> 📌 **不在这里列新增功能** —— 功能会持续增加，写进对话框就得一直维护。
 
 文案做成可翻译字符串（`[about]` 段的 `mods_*`，en + zh_Hans），
 与软件其余部分一致 —— about.xml 的 string id prefix 是 widget id `about`
@@ -1202,6 +1204,22 @@ cmake -B build -DMODS_TITLE_SUFFIX="内部使用  严禁外传"
 
 选 `nn`：完整、**已在我们发布的 23 种语言内**（无需额外引入）、
 北欧语系、且 FarNorthRunes 覆盖它全部特殊字符。
+
+### 27.1.1 ★造字语言的 ini 只需要一行★
+`Strings::loadLanguage()` **总是先加载 en.ini 作为底本**再覆盖目标语言
+（[strings.cpp](../src/app/i18n/strings.cpp)）：
+```cpp
+m_strings.clear();
+loadStringsFromDataDir(kDefLanguage);   // en 永远先加载
+m_default = m_strings;
+if (langId != kDefLanguage) loadStringsFromDataDir(langId);
+```
+⇒ 以英文为底本的语言（sarkaz / seaborn）**只需写 `[_] display_name`**，
+其余全部自动回退到英文。原先复制整个 en.ini（2078 行）是多余的，
+而且是**会过期的快照** —— 英文加了新字符串后，快照里没有的部分反而正常，
+但快照里过时的旧值会覆盖新值。已精简为 14 行。
+
+`farnorth` 例外，必须保留完整的 nn.ini 内容 —— 它的底本是尼诺斯克语，英文兜底不了。
 
 ### 27.2 退路仍在
 三个字体都不含 CJK，所以显示名里的中文（`萨卡兹语`/`海嗣文`/`极北卢恩文字`）

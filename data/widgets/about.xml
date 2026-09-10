@@ -21,7 +21,6 @@
     <separator horizontal="true" />
     <label text="@.mods_heading" />
     <label text="@.mods_what" />
-    <label text="@.mods_features" />
     <label text="@.mods_notaffiliated" />
     <label text="@.mods_license" />
     <link text="@.mods_repo" url="https://github.com/Mornia-source/aseprite" />
