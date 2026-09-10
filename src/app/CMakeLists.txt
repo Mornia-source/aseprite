@@ -162,6 +162,12 @@ if(ENABLE_WEBP AND WEBP_FOUND)
 endif()
 if(ENABLE_PSD)
   target_link_libraries(app-lib psd)
+  # MODS: seam S14 -- dio-lib needs this too. detect_format.cpp lives in
+  # src/dio and guards the .psd/.psb extensions with #ifdef ENABLE_PSD since
+  # upstream 443209de5, but only app-lib was given the define. Without this
+  # line PSD files are not recognised at all even with ENABLE_PSD=ON.
+  # Upstream does not notice because its ENABLE_PSD default is off.
+  target_compile_definitions(dio-lib PUBLIC -DENABLE_PSD)
   target_compile_definitions(app-lib PUBLIC -DENABLE_PSD)
   target_sources(app-lib PRIVATE
     file/psd_format.cpp)
