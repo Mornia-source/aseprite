@@ -32,6 +32,19 @@
 #include "app/modules/gfx.h"
 #include "app/modules/gui.h"
 #include "app/thumbnails.h"
+// MODS: seam S4 -- see docs/MODDING_NOTES.md
+#ifdef ENABLE_MODS
+  #include "app/mods/ui/layer_thumbnail.h"
+  // Width reserved for the per-layer thumbnail column. Expands to 0 when the
+  // feature is off, which restores the stock column layout exactly.
+  #define MODS_THUMB_W() (mods::layer_thumbnail_width(headerBoxWidth()))
+  // The header toggle button keeps its slot even when the column is collapsed,
+  // otherwise there would be no way to switch the column back on.
+  #define MODS_HDR_W()   (headerBoxWidth())
+#else
+  #define MODS_THUMB_W() 0
+  #define MODS_HDR_W()   0
+#endif
 #include "app/transaction.h"
 #include "app/tx.h"
 #include "app/ui/app_menuitem.h"
@@ -82,6 +95,7 @@ enum {
   PART_HEADER_EYE,
   PART_HEADER_PADLOCK,
   PART_HEADER_CONTINUOUS,
+  PART_HEADER_THUMBNAILS, // MODS: toggle for the layer thumbnail column
   PART_HEADER_GEAR,
   PART_HEADER_ONIONSKIN,
   PART_HEADER_ONIONSKIN_RANGE_LEFT,
@@ -89,6 +103,7 @@ enum {
   PART_HEADER_LAYER,
   PART_HEADER_FRAME,
   PART_ROW,
+  PART_ROW_THUMBNAIL, // MODS: seam S4/P1
   PART_ROW_EYE_ICON,
   PART_ROW_PADLOCK_ICON,
   PART_ROW_CONTINUOUS_ICON,
@@ -496,6 +511,19 @@ void Timeline::setFrame(col_t frame, bool byUser)
   invalidateFrame(m_frame);
   invalidateFrame(frame);
 
+  // MODS: seam S4/P8 -- thumbnails show the cel of the *current* frame, and
+  // invalidateFrame() only covers the cel columns, so the thumbnail column
+  // would keep showing the old frame.
+#ifdef ENABLE_MODS
+  if (frame != m_frame && mods::layer_thumbnails_enabled()) {
+    gfx::Rect thumbRc;
+    thumbRc |= getPartBounds(Hit(PART_ROW_THUMBNAIL, firstLayer()));
+    thumbRc |= getPartBounds(Hit(PART_ROW_THUMBNAIL, lastLayer()));
+    if (!thumbRc.isEmpty())
+      invalidateRect(thumbRc.offset(origin()));
+  }
+#endif
+
   gfx::Rect onionRc = getOnionskinFramesBounds();
 
   m_frame = frame;
@@ -771,7 +799,10 @@ bool Timeline::onProcessMessage(Message* msg)
           }
           break;
         }
-        case PART_ROW_TEXT: {
+        // MODS: seam S4/P5 -- clicking the thumbnail behaves like clicking the
+        // layer name, so Ctrl+click reuses upstream's select_layer_boundaries().
+        case PART_ROW_THUMBNAIL:
+        case PART_ROW_TEXT:      {
           base::ScopedValue lock(m_fromTimeline, true);
           const layer_t old_layer = getLayerIndex(m_layer);
           const bool selectLayer = (mouseMsg->left() || !isLayerActive(m_clk.layer));
@@ -1209,6 +1240,15 @@ bool Timeline::onProcessMessage(Message* msg)
         setHot(hitTest(msg, mouseMsg->position() - bounds().origin()));
 
         switch (m_hot.part) {
+          // MODS: toggle the layer thumbnail column.
+#ifdef ENABLE_MODS
+          case PART_HEADER_THUMBNAILS:
+            mods::set_layer_thumbnails_enabled(!mods::layer_thumbnails_enabled());
+            layout(); // the column width changed, so re-run the layout
+            invalidate();
+            break;
+#endif
+
           case PART_HEADER_GEAR: {
             gfx::Rect gearBounds = getPartBounds(Hit(PART_HEADER_GEAR)).offset(bounds().origin());
 
@@ -1244,6 +1284,7 @@ bool Timeline::onProcessMessage(Message* msg)
             }
             break;
 
+          case PART_ROW_THUMBNAIL: // MODS: seam S4/P5
           case PART_ROW_TEXT:
             // Show the layer pop-up menu.
             if (mouseMsg->right()) {
@@ -1389,7 +1430,8 @@ bool Timeline::onProcessMessage(Message* msg)
 
     case kDoubleClickMessage:
       switch (m_hot.part) {
-        case PART_ROW_TEXT: {
+        case PART_ROW_THUMBNAIL: // MODS: seam S4/P5
+        case PART_ROW_TEXT:      {
           Command* command = Commands::instance()->byId(CommandId::LayerProperties());
 
           m_context->executeCommand(command);
@@ -1614,6 +1656,12 @@ void Timeline::handleRangeMouseMove(doc::Layer* fromLayer, const col_t fromFrame
 void Timeline::onInitTheme(ui::InitThemeEvent& ev)
 {
   Widget::onInitTheme(ev);
+
+  // MODS: cached thumbnail surfaces are tied to the display's color space, and
+  // the toggle icon is tinted with a theme color, so drop them on theme change.
+#ifdef ENABLE_MODS
+  mods::clear_layer_thumbnail_cache();
+#endif
 
   auto theme = SkinTheme::get(this);
   int barsize = theme->dimensions.miniScrollbarSize();
@@ -2239,6 +2287,25 @@ void Timeline::drawHeader(ui::Graphics* g)
            m_hot.part == PART_HEADER_CONTINUOUS,
            m_clk.part == PART_HEADER_CONTINUOUS);
 
+  // MODS: layer-thumbnail toggle. The background uses a stock timeline style so
+  // it matches the neighbouring buttons; only the glyph is ours.
+#ifdef ENABLE_MODS
+  {
+    const gfx::Rect thumbBtn = getPartBounds(Hit(PART_HEADER_THUMBNAILS));
+    if (!thumbBtn.isEmpty()) {
+      const bool on = mods::layer_thumbnails_enabled();
+      drawPart(g,
+               thumbBtn,
+               nullptr,
+               styles.timelineBox(),
+               on || (m_clk.part == PART_HEADER_THUMBNAILS),
+               m_hot.part == PART_HEADER_THUMBNAILS,
+               m_clk.part == PART_HEADER_THUMBNAILS);
+      mods::draw_layer_thumbnails_toggle(g, thumbBtn, on, skinTheme()->colors.text());
+    }
+  }
+#endif
+
   drawPart(g,
            getPartBounds(Hit(PART_HEADER_GEAR)),
            nullptr,
@@ -2346,6 +2413,23 @@ void Timeline::drawLayer(ui::Graphics* g, const int layerIdx)
            is_active || (clklayer && m_clk.part == PART_ROW_CONTINUOUS_ICON),
            (hotlayer && m_hot.part == PART_ROW_CONTINUOUS_ICON),
            (clklayer && m_clk.part == PART_ROW_CONTINUOUS_ICON));
+
+  // MODS: seam S4/P4 -- per-layer thumbnail column, right after the
+  // continuous/group icon.
+#ifdef ENABLE_MODS
+  bounds = getPartBounds(Hit(PART_ROW_THUMBNAIL, layerIdx));
+  if (!bounds.isEmpty() && m_adapter) {
+    const bool is_clicked_thumb = (clklayer && m_clk.part == PART_ROW_THUMBNAIL);
+    drawPart(g,
+             bounds,
+             nullptr,
+             styles.timelineLayer(),
+             is_active || is_clicked_thumb,
+             (hotlayer && m_hot.part == PART_ROW_THUMBNAIL),
+             is_clicked_thumb);
+    mods::draw_layer_thumbnail(g, bounds, layer, m_adapter->toRealFrame(m_frame));
+  }
+#endif
 
   // Get the layer's name bounds.
   bounds = getPartBounds(Hit(PART_ROW_TEXT, layerIdx));
@@ -3094,6 +3178,9 @@ gfx::Rect Timeline::getPartBounds(const Hit& hit) const
                        separatorX() + m_separator_w,
                        bounds.h - y);
 
+    // MODS: seam S4/P2a -- the thumbnail column sits AFTER the continuous/group
+    // column, so eye/padlock/continuous keep their stock positions and only the
+    // columns to the right of the thumbnail are offset by MODS_THUMB_W().
     case PART_HEADER_EYE:
       return gfx::Rect(bounds.x + headerBoxWidth() * 0,
                        bounds.y + y,
@@ -3112,23 +3199,32 @@ gfx::Rect Timeline::getPartBounds(const Hit& hit) const
                        headerBoxWidth(),
                        headerBoxHeight());
 
-    case PART_HEADER_GEAR:
+    // MODS: toggle button, directly above the thumbnail column.
+    case PART_HEADER_THUMBNAILS:
       return gfx::Rect(bounds.x + headerBoxWidth() * 3,
+                       bounds.y + y,
+                       MODS_HDR_W(),
+                       headerBoxHeight());
+
+    case PART_HEADER_GEAR:
+      return gfx::Rect(bounds.x + MODS_HDR_W() + headerBoxWidth() * 3,
                        bounds.y + y,
                        headerBoxWidth(),
                        headerBoxHeight());
 
     case PART_HEADER_ONIONSKIN:
-      return gfx::Rect(bounds.x + headerBoxWidth() * 4,
+      return gfx::Rect(bounds.x + MODS_HDR_W() + headerBoxWidth() * 4,
                        bounds.y + y,
                        headerBoxWidth(),
                        headerBoxHeight());
 
-    case PART_HEADER_LAYER:
-      return gfx::Rect(bounds.x + headerBoxWidth() * 5,
+    case PART_HEADER_LAYER: {
+      const int x = MODS_HDR_W() + headerBoxWidth() * 5;
+      return gfx::Rect(bounds.x + x,
                        bounds.y + y,
-                       separatorX() - headerBoxWidth() * 5,
+                       std::max(0, separatorX() - x),
                        headerBoxHeight());
+    }
 
     case PART_HEADER_FRAME: {
       col_t frame = std::max(firstFrame(), hit.frame);
@@ -3179,13 +3275,25 @@ gfx::Rect Timeline::getPartBounds(const Hit& hit) const
       }
       break;
 
+    // MODS: seam S4/P2b -- thumbnail column, immediately right of the
+    // continuous/group column.
+    case PART_ROW_THUMBNAIL:
+      if (validLayer(hit.layer)) {
+        return gfx::Rect(bounds.x + 3 * headerBoxWidth(),
+                         bounds.y + y + headerBoxHeight() +
+                           layerBoxHeight() * (lastLayer() - hit.layer) - viewScroll().y,
+                         MODS_THUMB_W(),
+                         layerBoxHeight());
+      }
+      break;
+
     case PART_ROW_TEXT:
       if (validLayer(hit.layer)) {
-        int x = headerBoxWidth() * 3;
+        int x = MODS_THUMB_W() + headerBoxWidth() * 3;
         return gfx::Rect(bounds.x + x,
                          bounds.y + y + headerBoxHeight() +
                            layerBoxHeight() * (lastLayer() - hit.layer) - viewScroll().y,
-                         separatorX() - x,
+                         std::max(0, separatorX() - x),
                          layerBoxHeight());
       }
       break;
@@ -3689,6 +3797,9 @@ Timeline::Hit Timeline::hitTest(ui::Message* msg, const gfx::Point& mousePos)
           hit.part = PART_HEADER_PADLOCK;
         else if (getPartBounds(Hit(PART_HEADER_CONTINUOUS)).contains(mousePos))
           hit.part = PART_HEADER_CONTINUOUS;
+        // MODS: must precede the gear, which now sits one slot to the right.
+        else if (getPartBounds(Hit(PART_HEADER_THUMBNAILS)).contains(mousePos))
+          hit.part = PART_HEADER_THUMBNAILS;
         else if (getPartBounds(Hit(PART_HEADER_GEAR)).contains(mousePos))
           hit.part = PART_HEADER_GEAR;
         else if (getPartBounds(Hit(PART_HEADER_ONIONSKIN)).contains(mousePos))
@@ -3711,6 +3822,9 @@ Timeline::Hit Timeline::hitTest(ui::Message* msg, const gfx::Point& mousePos)
         hit.part = PART_ROW_PADLOCK_ICON;
       else if (getPartBounds(Hit(PART_ROW_CONTINUOUS_ICON, hit.layer)).contains(mousePos))
         hit.part = PART_ROW_CONTINUOUS_ICON;
+      // MODS: seam S4/P3 -- must be tested before PART_ROW_TEXT.
+      else if (getPartBounds(Hit(PART_ROW_THUMBNAIL, hit.layer)).contains(mousePos))
+        hit.part = PART_ROW_THUMBNAIL;
       else if (getPartBounds(Hit(PART_ROW_TEXT, hit.layer)).contains(mousePos))
         hit.part = PART_ROW_TEXT;
       else
@@ -3866,6 +3980,16 @@ void Timeline::updateStatusBar(ui::Message* msg)
         return;
       }
 
+      // MODS
+#ifdef ENABLE_MODS
+      case PART_HEADER_THUMBNAILS: {
+        sb->setStatusText(0,
+                          fmt::format("Layer thumbnails are {} -- click to toggle",
+                                      mods::layer_thumbnails_enabled() ? "shown" : "hidden"));
+        return;
+      }
+#endif
+
       case PART_ROW_TEXT:
         if (layer != NULL) {
           sb->setStatusText(0,
@@ -3874,6 +3998,17 @@ void Timeline::updateStatusBar(ui::Message* msg)
                                         layer->name(),
                                         layer->isVisible() ? "visible" : "hidden",
                                         layer->isEditable() ? "" : " locked"));
+          return;
+        }
+        break;
+
+      // MODS: seam S4/P7
+      case PART_ROW_THUMBNAIL:
+        if (layer != NULL) {
+          sb->setStatusText(0,
+                            fmt::format("Layer '{}' -- Ctrl+click to select its content "
+                                        "(+Shift add, +Alt subtract, +Alt+Shift intersect)",
+                                        layer->name()));
           return;
         }
         break;
@@ -4640,6 +4775,7 @@ void Timeline::onDrag(ui::DragEvent& e)
   switch (m_hot.part) {
     case PART_NOTHING:             invalidate(); [[fallthrough]];
     case PART_ROW:
+    case PART_ROW_THUMBNAIL: // MODS: seam S4/P6
     case PART_ROW_EYE_ICON:
     case PART_ROW_CONTINUOUS_ICON:
     case PART_ROW_PADLOCK_ICON:
