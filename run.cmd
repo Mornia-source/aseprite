@@ -84,7 +84,7 @@ if "%RECONFIGURE%"=="1" (
       -DSKIA_LIBRARY=%SKIA%/out/Release-x64/skia.lib ^
       -DENABLE_PSD=ON ^
       -DENABLE_MODS=ON ^
-      -DENABLE_I18N_STRINGS=ON
+      -DENABLE_I18N_STRINGS=OFF
     if errorlevel 1 (
         echo [run] ERROR: cmake configure failed.
         exit /b 1

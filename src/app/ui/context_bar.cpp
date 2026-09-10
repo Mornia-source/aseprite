@@ -22,6 +22,10 @@
 #include "app/extensions.h"
 #include "app/i18n/strings.h"
 #include "app/ini_file.h"
+// MODS: seam S15 -- see docs/MODDING_NOTES.md
+#ifdef ENABLE_MODS
+  #include "app/mods/tools/tool_opacity.h"
+#endif
 #include "app/match_words.h"
 #include "app/pref/preferences.h"
 #include "app/shade.h"
@@ -825,6 +829,12 @@ protected:
       Tool* tool = App::instance()->activeTool();
       pref.tool(tool).opacity(newValue);
     }
+
+    // MODS: seam S15 -- SIMPLE ink ignores opacity (ToolLoop forces it back to
+    // 255), so promote it to alpha compositing or the field would do nothing.
+#ifdef ENABLE_MODS
+    mods::promote_ink_for_opacity(App::instance()->activeTool(), newValue);
+#endif
   }
 };
 
@@ -2400,7 +2410,13 @@ void ContextBar::updateForTool(tools::Tool* tool)
                                  tool->getFill(1) == tools::FillAlways);
 
   const bool showOpacity = (supportOpacity) &&
-                           ((isPaint && (hasInkWithOpacity || hasImageBrush)) || (isEffect));
+                           ((isPaint && (hasInkWithOpacity || hasImageBrush)) || (isEffect)
+// MODS: seam S15 -- also offer it for paint tools still on the default SIMPLE
+// ink (pencil, contour, ...), which upstream leaves without any opacity field.
+#ifdef ENABLE_MODS
+                            || mods::tool_offers_opacity(tool)
+#endif
+                           );
 
   const bool withDithering = tool && (tool->getInk(0)->withDitheringOptions() ||
                                       tool->getInk(1)->withDitheringOptions());

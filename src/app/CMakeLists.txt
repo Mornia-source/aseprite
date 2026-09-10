@@ -177,6 +177,7 @@ endif()
 if(ENABLE_MODS)
   target_compile_definitions(app-lib PUBLIC -DENABLE_MODS)
   target_sources(app-lib PRIVATE
+    mods/tools/tool_opacity.cpp
     mods/ui/layer_thumbnail.cpp)
 endif()
 

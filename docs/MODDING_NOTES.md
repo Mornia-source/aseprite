@@ -43,6 +43,7 @@
 | S12 | [timeline.cpp](../src/app/ui/timeline/timeline.cpp) | 表头缩略图开关按钮 `PART_HEADER_THUMBNAILS`，见 §3 的 P9~P12 | 高 | ✅ |
 | S13 | [data/strings/](../data/strings/) | 提交官方发布的 23 种语言（`ENABLE_I18N_STRINGS` 保持官方默认 off），见 §15 | 低 | ✅ |
 | **S14** | [src/app/CMakeLists.txt](../src/app/CMakeLists.txt) | 给 `dio-lib` 补 `-DENABLE_PSD`，修上游缺陷，见 §18.3 | 中 | ✅ |
+| S15 | [src/app/ui/context_bar.cpp](../src/app/ui/context_bar.cpp) | 画笔/轮廓等工具的不透明度（3 处接缝），见 §19 | 中 | ✅ |
 
 ### 我们自己的文件（无冲突风险，续）
 
@@ -738,3 +739,71 @@ ASEPRITE=/c/Users/Cherry/AppData/Local/Temp/asetest/aseprite.exe bash run-tests.
 ```
 `cli/save-as.sh` 仍会因 `cd $1` 失败 —— **环境问题，不是回归**。
 脚本遇错即 `exit 1`，所以能跑到它就说明前面全过了。
+
+
+---
+
+## 19. 工具不透明度（接缝 S15）
+
+**需求**：画笔、橡皮擦、轮廓工具在顶部选项栏加不透明度。
+
+### 19.1 现状调查（结论和直觉相反）
+`InkOpacityField` **本来就在** context bar 里，只是被这个条件挡住：
+```cpp
+showOpacity = supportOpacity && ((isPaint && (hasInkWithOpacity || hasImageBrush)) || isEffect);
+hasInkWithOpacity = ((isPaint && tools::inkHasOpacity(toolPref->ink())) || isEffect);
+```
+而 `inkHasOpacity()` 只对 `ALPHA_COMPOSITING` / `LOCK_ALPHA` 为真，
+工具默认墨水却是 `SIMPLE`（[pref.xml:354](../data/pref.xml)）。
+
+**★ 橡皮擦其实早就支持了 ★** —— `EraserInk::isEffect()` 返回 **true**
+（[inks.h:334](../src/app/tools/inks.h)），一个事实连锁解决三处：
+- `showOpacity` 里 `|| isEffect` 成立 → **控件本来就显示**
+- `tool_loop_impl.cpp:268` 的 `!m_ink->isEffect()` → 不透明度**不会被打回 255**
+- `adjustToolInkDependingOnSelectedInkType` 要求 `isPaint && !isEffect`
+  → 橡皮擦的墨水**不会被替换**
+且 EraserInk 已完整实现不透明度（255 走 CopyInk，否则 Transparent/MergeInk）。
+
+⇒ 真正缺的只有**画笔和轮廓**这类停留在 SIMPLE 墨水的 paint 工具。
+
+### 19.2 为什么不能只是"把控件显示出来"
+[tool_loop_impl.cpp:268](../src/app/ui/editor/tool_loop_impl.cpp:268)：
+```cpp
+// Ignore opacity for these inks
+if (!tools::inkHasOpacity(params.inkType) && m_brush->type() != kImageBrushType &&
+    !m_ink->isEffect()) {
+  m_opacity = 255;
+}
+```
+SIMPLE 墨水是直接替换像素的，不透明度**被强制打回 255**。
+只显示控件会得到一个"调了没反应"的假控件。
+
+### 19.3 做法（方案 A：自动提升墨水）
+`src/app/mods/tools/tool_opacity.{h,cpp}`：
+- `tool_offers_opacity(tool)` —— 对"纯 paint 工具"（`isPaint && !isEffect`）返回真
+- `promote_ink_for_opacity(tool, opacity)` —— 不透明度 < 255 且墨水为 SIMPLE 时，
+  提升为 `ALPHA_COMPOSITING`（正是手动操作等价的墨水），并遵循 `shareInk` 偏好
+
+**只升不降**：调回 255 不会改墨水，避免把用户刻意选的墨水悄悄改掉。
+
+**为什么只对 `isPaint && !isEffect` 提升**：因为只有这类工具的墨水会被
+`adjustToolInkDependingOnSelectedInkType` 按 inkType 重映射。
+对 effect 类（橡皮擦/模糊/涂抹）改 inkType 无意义，
+且橡皮擦若被误判成 paint 会**变成画笔**——这是本次最大的坑。
+
+### 19.4 三处接缝（context_bar.cpp）
+| 点 | 位置 | 内容 |
+|---|---|---|
+| 1 | include 区 | `#ifdef ENABLE_MODS` 引入头文件 |
+| 2 | `InkOpacityField::onValueChange()` 末尾 | 调 `promote_ink_for_opacity()` |
+| 3 | `showOpacity` 表达式 | `\|\| mods::tool_offers_opacity(tool)` |
+
+### 19.5 验证
+铅笔选中时选项栏出现「不透明度：100%」（原本完全没有该项）。
+
+### 19.6 踩坑：CMake 缓存变量不随 option() 默认值变化
+把 `ENABLE_I18N_STRINGS` 的默认值改回 `off` 后，**缓存里仍是 ON**
+（`option()` 不覆盖已存在的缓存项），FetchContent 继续尝试更新已被删除的
+`strings.git` 目录并报 `Failed to get the hash for HEAD`。
+⇒ `run.cmd` 现在**显式传 `-DENABLE_I18N_STRINGS=OFF`**，并需清理
+`build/_deps/clone_strings-*`。改选项默认值时都要注意这一点。
