@@ -145,7 +145,7 @@
 两个月冲到能读简单 PSD 就停了，之后四年只有 clang-format 和 submodule 版本号更新。
 半吊子的导入比没有导入更糟（静默出错 = 支持地狱），所以锁在开关后面标 experimental。
 
-### 4.1.1 ★ZIP 压缩是 F1 导入侧的硬门槛★
+### 4.1.1 ★ZIP 压缩★（已实现，2026-09-10，见 §29）
 
 | 缺口 | 证据 | 后果 |
 |---|---|---|
@@ -1259,3 +1259,60 @@ git fetch upstream && git rebase upstream/main
 git push --force-with-lease origin main
 cd ../.. && git add src/psd && git commit    # 更新父仓库的 gitlink
 ```
+
+
+---
+
+## 29. ZIP 压缩解码（2026-09-10）
+
+### 29.1 为什么这是最高优先级
+```cpp
+case CompressionMethod::ZIPWithoutPrediction:
+  // TODO
+  break;
+```
+两个分支**什么都不做就 break** —— delegate 一条扫描线也收不到，
+图层是空的，而且**不报任何错**。从用户角度看就是"导入成功了但图层没了"。
+Photoshop 对 16/32 位**必用** ZIP，8 位也常用。
+
+### 29.2 实现
+| 部分 | 说明 |
+|---|---|
+| `mods_inflate()` | zlib 解压到确切的期望字节数；返回 false 而非抛异常，让调用方能按通道报告 |
+| `mods_unpredict()` | ZIP-with-prediction 的差分还原：逐行累加。8 位按字节、16 位按大端字累加 |
+| `ImageData::dataLength` | **新增字段**。ZIP 流不像 raw/RLE 能从图像尺寸推出边界，必须被告知确切长度 |
+
+**长度从哪来**：图层通道有 `channel.length`（调用方 `readLayersAndMask` 已经用它算
+`fileEnd`），传进去即可。
+
+### 29.3 zlib 依赖做成可选
+`src/psd` 原本是零依赖的独立库（C++11），也能单独构建。
+所以 `psd/CMakeLists.txt` 只在 zlib 目标存在时链接并定义 `PSD_HAS_ZLIB`：
+```cmake
+if(TARGET ZLIB::ZLIB)
+  target_link_libraries(psd ZLIB::ZLIB)
+  target_compile_definitions(psd PRIVATE PSD_HAS_ZLIB)
+elseif(TARGET zlibstatic) ...
+```
+单独构建时 ZIP 仍不支持（与改动前一致），**不破坏该库的独立性**。
+
+### 29.4 未支持的两处（**明确报错，不再静默**）
+| 情况 | 行为 |
+|---|---|
+| 32 位深的 ZIP 通道 | 抛错。32 位用的是字节平面重排 + 差分，与 8/16 位方案不同 |
+| **无图层**的 PSD 且合成图为 ZIP | 抛错。合成图段读到 EOF，而 `FileInterface` 没有取文件大小的接口 |
+
+后者影响面很小：合成图只在 PSD **完全没有图层记录**时才被使用。
+
+### 29.5 验证方法（可复用）
+用 Python 生成两个 ZIP PSD，像素是**可预测的图案**
+（R=x*16, G=y*16, B=128, A=255），导入后用 Lua **逐像素比对**：
+```
+zip_nopred : 校验 256 像素  不符 0  ✓
+zip_pred   : 校验 256 像素  不符 0  ✓
+```
+> 📌 造 PSD 时踩的坑：图层与蒙版段的结构是
+> `[layer info 长度][layer info][全局蒙版信息长度]`，
+> 漏掉最后那个 4 字节会让 decoder 读到垃圾并抛 `Unexpected opacity for mask`。
+
+回归：真实 PS 文件（RLE+Raw）、带图层组的 PSD、异常文件报错路径 —— 均正常。
