@@ -1022,6 +1022,8 @@
           <item command="ShowLayerEdges" text="@.view_show_layer_edges" />
           <item command="ShowSelectionEdges" text="@.view_show_selection_edges" />
           <item command="ShowGrid" text="@.view_show_grid" />
+          <!-- MODS: seam S18 -->
+          <item command="ShowPaletteBars" text="@.view_show_palette_bars" />
           <item command="ShowAutoGuides" text="@.view_show_auto_guides" />
           <item command="ShowSlices" text="@.view_show_slices" />
           <item command="ShowPixelGrid" text="@.view_show_pixel_grid" />

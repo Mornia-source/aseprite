@@ -256,6 +256,11 @@ ColorBar::ColorBar(TooltipManager* tooltipManager)
 
   addChild(&m_palHBox);
   addChild(&m_tilesHBox);
+  // MODS: seam S16 -- the ramps sit directly above the palette.
+#ifdef ENABLE_MODS
+  addChild(&m_paletteBars);
+  m_paletteBars.setVisible(mods::PaletteBars::enabled());
+#endif
   addChild(&m_splitter);
 
   addChild(&m_colorHelpers);
@@ -446,6 +451,15 @@ doc::tile_index ColorBar::getBgTile() const
 {
   return m_bgTile.getTile();
 }
+
+// MODS: seam S16
+#ifdef ENABLE_MODS
+void ColorBar::updatePaletteBarsVisibility()
+{
+  m_paletteBars.setVisible(mods::PaletteBars::enabled());
+  layout();
+}
+#endif
 
 ColorBar::ColorSelector ColorBar::getColorSelector() const
 {

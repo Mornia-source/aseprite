@@ -44,6 +44,9 @@
 | S13 | [data/strings/](../data/strings/) | 提交官方发布的 23 种语言（`ENABLE_I18N_STRINGS` 保持官方默认 off），见 §15 | 低 | ✅ |
 | **S14** | [src/app/CMakeLists.txt](../src/app/CMakeLists.txt) | 给 `dio-lib` 补 `-DENABLE_PSD`，修上游缺陷，见 §18.3 | 中 | ✅ |
 | S15 | [src/app/ui/context_bar.cpp](../src/app/ui/context_bar.cpp) | 画笔/轮廓等工具的不透明度（3 处接缝），见 §19 | 中 | ✅ |
+| S16 | [color_bar.h](../src/app/ui/color_bar.h) + [color_bar.cpp](../src/app/ui/color_bar.cpp) | 把调色板色条插到调色板上方，见 §20 | 中 | ✅ |
+| S17 | [commands_list.h](../src/app/commands/commands_list.h) | 注册 `ShowPaletteBars` 命令 | 低 | ✅ |
+| S18 | [data/gui.xml](../data/gui.xml) + [en.ini](../data/strings/en.ini) + [zh_Hans.ini](../data/strings/zh_Hans.ini) | 视图菜单项 + 字符串 | 中 | ✅ |
 
 ### 我们自己的文件（无冲突风险，续）
 
@@ -807,3 +810,54 @@ SIMPLE 墨水是直接替换像素的，不透明度**被强制打回 255**。
 `strings.git` 目录并报 `Failed to get the hash for HEAD`。
 ⇒ `run.cmd` 现在**显式传 `-DENABLE_I18N_STRINGS=OFF`**，并需清理
 `build/_deps/clone_strings-*`。改选项默认值时都要注意这一点。
+
+
+---
+
+## 20. 调色板色条（接缝 S16/S17/S18）
+
+**需求**：三条细长色条固定在现有调色板上方；两端各一个方形色块，
+左键单击色块填入前景色、右键填入背景色；两端都有色时中间出现**两条**渐变带，
+左键取色到前景、右键到背景；视图菜单可开关，默认开。
+
+### 20.1 设计取舍
+- **两条渐变带 = 两种插值**：上=RGB 线性，下=HSV（色相走最短弧）。
+  两者只在**中间调**分歧，而中间调正是取色最常用的区域 —— 一次给出两种选择。
+- **持久化用全局配置**（`[Mods] PaletteBarN{L,R}`），不写进 .aseprite。
+  理由：这是取色工具而非文档数据，切换文档应保留；也不污染文件格式。
+  代价：Aseprite 只在**正常退出**时写 ini，被强杀（如 `run.cmd` 的 taskkill）会丢。
+- **位置**：`ColorBar` 是垂直 Box，插在 `m_tilesHBox` 与 `m_splitter` 之间
+  → 视觉上正好在调色板上方。
+
+### 20.2 UI 必须用官方绘制函数
+最初用 `fillRect`+`drawRect` 手绘，风格与软件割裂。正确做法：
+- 色块：`draw_color_button()`（[modules/gfx.h](../src/app/modules/gfx.h)）——
+  官方色块渲染，自带主题描边、透明棋盘格、hover 态
+- 渐变带：套同一组 9 宫格边框 `theme->parts.colorbar0..3`
+  （即 `draw_color_button` 内部用的那组）
+
+### 20.3 ★两个坐标/绘制陷阱★
+
+**(1) `childrenBounds()` 是父坐标，不是 client 坐标**
+`onPaint` 用 client 坐标（原点 0,0），而 `childrenBounds()` 返回相对父控件的坐标。
+用错会导致**背景画对了、内容全部画到可视区外**（现象：控件占了位但看不到东西）。
+→ 用 `clientChildrenBounds()`；鼠标坐标也要 `- bounds().origin()` 转过去。
+
+**(2) `gfx::Rect::shrink()` 原地修改并返回 `*this`**
+```cpp
+const gfx::Rect inner = area.shrink(scale);  // ← area 也被缩小了！
+```
+[laf/gfx/rect.h:215](../laf/gfx/rect.h:215) 签名是 `RectT& shrink(const T&)`。
+后果：边框画在已缩小的矩形上，渐变色**溢出到边框外**。
+→ 先复制再 shrink。
+
+**(3) 圆角边框 + 方形填充 = 四角溢出**
+边框是圆角矩形，颜色填的是方形，四个角会露在圆角外。
+→ `clear_rounded_corners()` 把四角各 1×guiscale 的方块用背景色补回。
+
+### 20.4 验证
+- 三条色条显示在调色板上方，行间留白 ✅
+- 左键/右键填色块 ✅
+- 两条渐变带（RGB / HSV 可辨） ✅
+- 从渐变带左键取色到前景 ✅
+- `app.command.ShowPaletteBars()` 可被 **Lua 插件调用** ✅，菜单加载无告警 ✅

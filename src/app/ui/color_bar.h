@@ -37,6 +37,11 @@ namespace ui {
 class TooltipManager;
 }
 
+// MODS: seam S16
+#ifdef ENABLE_MODS
+  #include "app/mods/ui/palette_bars.h"
+#endif
+
 namespace app {
 class ColorButton;
 class ColorSpectrum;
@@ -83,6 +88,11 @@ public:
   void setBgTile(doc::tile_t tile);
 
   PaletteView* getPaletteView() { return &m_paletteView; }
+
+  // MODS: seam S16 -- see docs/MODDING_NOTES.md
+#ifdef ENABLE_MODS
+  void updatePaletteBarsVisibility();
+#endif
   PaletteView* getTilesView() { return &m_tilesView; }
 
   ColorSelector getColorSelector() const;
@@ -240,6 +250,10 @@ private:
   ui::Button m_remapPalButton;
   ui::Button m_remapTilesButton;
   ui::VBox m_colorHelpers;
+  // MODS: seam S16
+#ifdef ENABLE_MODS
+  mods::PaletteBars m_paletteBars;
+#endif
   ui::HBox m_tilesHelpers;
   ColorSelector m_selector;
   ColorTintShadeTone* m_tintShadeTone;

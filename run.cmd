@@ -95,12 +95,13 @@ rem ---- stop a running instance -----------------------------------------------
 rem The linker cannot overwrite bin\aseprite.exe while it is running, and fails
 rem with "LNK1104: cannot open file". Only our own build is killed, never an
 rem installed Aseprite: the image name is matched against this build's path.
-tasklist /fi "imagename eq aseprite.exe" 2>nul | find /i "aseprite.exe" >nul
+rem taskkill reports 0 when it killed something and 128 when there was nothing
+rem to kill, which is a more reliable test than parsing tasklist output.
+taskkill /f /im aseprite.exe >nul 2>nul
 if not errorlevel 1 (
-    echo [run] a running aseprite.exe would block the linker, closing it...
-    taskkill /f /im aseprite.exe >nul 2>nul
+    echo [run] closed a running aseprite.exe ^(it would block the linker^)
     rem Give the OS a moment to release the file handle.
-    ping -n 2 127.0.0.1 >nul
+    ping -n 3 127.0.0.1 >nul
 )
 
 rem ---- build -----------------------------------------------------------------
