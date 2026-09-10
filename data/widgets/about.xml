@@ -8,7 +8,6 @@
     <label text="Animated sprite editor &amp;&amp; pixel art tool" />
     <link text="Authors &amp;&amp; Credits" url="" id="credits" />
     <link text="Translators" url="" id="i18n_credits" />
-    <link text="Open Source Projects" url="" id="licenses" />
     <separator horizontal="true" />
     <hbox>
       <label text="Copyright (C) 2001-2026" />

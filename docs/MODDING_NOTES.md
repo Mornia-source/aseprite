@@ -1116,8 +1116,12 @@ REQ: /update?xml=1&inits=263&exits=262
 与软件其余部分一致 —— about.xml 的 string id prefix 是 widget id `about`
 （[widget_loader.cpp:93](../src/app/widget_loader.cpp:93)）。
 
-> ⚠️ 已知：「Open Source Projects」链接指向 `docs/LICENSES.md`，
-> 而本工作区删掉了该文件，链接在我们的构建里是**死的**。未处理。
+「Open Source Projects」链接**已删除** —— 它指向 `docs/LICENSES.md`，
+而本工作区删掉了该文件，链接在我们的构建里是死的。
+
+> ⚠️ `about.xml.h` 由 gen 从 about.xml 生成，删掉控件后 `window.licenses()`
+> 成员就不存在了，**必须同步删掉 [cmd_about.cpp](../src/app/commands/cmd_about.cpp)
+> 里的 Click 绑定**，否则编译失败。
 
 ### 26.3 标题栏后缀（S25）
 ```

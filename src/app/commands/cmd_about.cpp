@@ -44,10 +44,9 @@ void AboutCommand::onExecute(Context* context)
 {
   gen::About window;
   window.title()->setText(fmt::format("{} v{}", get_app_name(), get_app_version()));
-  window.licenses()->Click.connect([&window] {
-    window.closeWindow(nullptr);
-    App::instance()->mainWindow()->showBrowser("docs/LICENSES.md");
-  });
+  // MODS: seam S24 -- the "Open Source Projects" link is gone from about.xml.
+  // It opened docs/LICENSES.md, which this working tree does not carry, so the
+  // link was dead in our builds.
   window.credits()->Click.connect([&window] {
     window.closeWindow(nullptr);
     App::instance()->mainWindow()->showBrowser("AUTHORS.md", "Authors");
