@@ -8,6 +8,7 @@
 #include "app/file/file_format.h"
 #include "base/file_handle.h"
 #include "doc/blend_mode.h"
+#include "doc/cel.h" // MODS
 #include "doc/image.h"
 #include "doc/layer.h"
 #include "doc/palette.h"
@@ -15,7 +16,56 @@
 #include "doc/sprite.h"
 #include "psd/psd.h"
 
+#include <string> // MODS
+
 namespace app {
+
+// MODS: safety net for layer names. The PSD "luni" block gives us a proper
+// UTF-8 name (see src/psd/decoder.cpp), but files written before Photoshop 6
+// only carry the legacy Pascal string, which is in an unknown system codepage.
+// Feeding those bytes to the UI text shaper kills the process, so anything that
+// is not valid UTF-8 is replaced here instead of reaching the timeline.
+static std::string psd_sanitize_utf8(const std::string& s)
+{
+  std::string out;
+  out.reserve(s.size());
+
+  for (size_t i = 0; i < s.size();) {
+    const unsigned char c = (unsigned char)s[i];
+    int extra;
+    if (c < 0x80) {
+      out += char(c);
+      ++i;
+      continue;
+    }
+    else if ((c & 0xE0) == 0xC0)
+      extra = 1;
+    else if ((c & 0xF0) == 0xE0)
+      extra = 2;
+    else if ((c & 0xF8) == 0xF0)
+      extra = 3;
+    else {
+      out += '?';
+      ++i;
+      continue;
+    }
+
+    // Every continuation byte must be present and well-formed.
+    bool ok = (i + extra < s.size());
+    for (int k = 1; ok && k <= extra; ++k)
+      ok = (((unsigned char)s[i + k] & 0xC0) == 0x80);
+
+    if (ok) {
+      out.append(s, i, extra + 1);
+      i += extra + 1;
+    }
+    else {
+      out += '?';
+      ++i;
+    }
+  }
+  return out;
+}
 
 doc::PixelFormat psd_cmode_to_ase_format(const psd::ColorMode mode)
 {
@@ -91,7 +141,9 @@ public:
   void onFileHeader(const psd::FileHeader& header) override
   {
     m_pixelFormat = psd_cmode_to_ase_format(header.colorMode);
-    m_sprite = new Sprite(ImageSpec(ColorMode(m_pixelFormat), header.width, header.width));
+    // MODS: was `header.width, header.width` -- the canvas height came out
+    // equal to the width, so any non-square PSD opened with the wrong size.
+    m_sprite = new Sprite(ImageSpec(ColorMode(m_pixelFormat), header.width, header.height));
     m_layerHasTransparentChannel = hasTransparency(header.nchannels);
   }
 
@@ -149,7 +201,9 @@ public:
       if (!m_layerGroup)
         throw std::runtime_error("unexpected end of a group layer");
 
-      m_layerGroup->setName(layerRecord.name);
+      m_layerGroup->setName(psd_sanitize_utf8(layerRecord.name)); // MODS
+      // MODS: groups carry the same hidden flag as normal layers.
+      m_layerGroup->setVisible(layerRecord.isVisible());
       if (!m_groups.empty())
         m_groups.pop_back();
 
@@ -159,29 +213,41 @@ public:
         m_layerGroup = m_groups.back();
     }
     else {
-      auto findIter = std::find_if(
-        m_layers.begin(),
-        m_layers.end(),
-        [&layerRecord](doc::Layer* layer) { return layer->name() == layerRecord.name; });
+      const std::string layerName = psd_sanitize_utf8(layerRecord.name); // MODS
+      auto findIter =
+        std::find_if(m_layers.begin(), m_layers.end(), [&layerName](doc::Layer* layer) {
+          return layer->name() == layerName;
+        });
       if (findIter == m_layers.end()) {
         if (!m_layerGroup) // In this case, there are no layer groups
           m_layerGroup = m_sprite->root();
 
-        createNewLayer(layerRecord.name);
-        // m_currentLayer->setVisible(layerRecord.isVisible());
+        createNewLayer(layerName);
         m_layerHasTransparentChannel = hasTransparency(layerRecord.channels.size());
       }
-      else {
+      // MODS: a same-named layer without a cel at frame 0 used to crash here on
+      // the unchecked cel() dereference.
+      else if (doc::Cel* cel = (*findIter)->cel(frame_t(0))) {
         m_currentLayer = *findIter;
-        m_currentImage = m_currentLayer->cel(frame_t(0))->imageRef();
+        m_currentImage = cel->imageRef();
       }
     }
   }
 
   void onEndLayer(const psd::LayerRecord& layerRecord) override
   {
-    if (!m_framesInfo.empty() && (layerRecord.inFrames.size() == m_framesInfo.size()) &&
-        m_currentImage) {
+    const bool usesFrameAnimation = (!m_framesInfo.empty() &&
+                                     layerRecord.inFrames.size() == m_framesInfo.size());
+
+    // MODS: apply the PSD "hidden" flag. Upstream had this commented out in
+    // onBeginLayer, so layer visibility was silently dropped on import.
+    // It must be skipped for animated PSDs: there "hidden" means "not present
+    // in this frame", which the branch below expresses as cels instead, and
+    // hiding the whole layer would make the animation disappear.
+    if (m_currentLayer && !usesFrameAnimation)
+      m_currentLayer->setVisible(layerRecord.isVisible());
+
+    if (usesFrameAnimation && m_currentImage) {
       std::unique_ptr<Cel> layerCel(m_currentLayer->cel(frame_t(0)));
       LayerImage* imageLayer = static_cast<LayerImage*>(m_currentLayer);
       imageLayer->removeCel(layerCel.get());
