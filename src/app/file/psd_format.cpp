@@ -20,7 +20,9 @@
   #include "app/mods/file/psd_encoder.h"
 #endif
 
-#include <string> // MODS
+#include <algorithm> // MODS
+#include <cstring>   // MODS
+#include <string>    // MODS
 
 namespace app {
 
@@ -210,6 +212,22 @@ public:
     // this record's channel data.
     m_currentOrigin = gfx::Point(layerRecord.left, layerRecord.top);
 
+    // MODS: a layer mask arrives as its own channel, sized to its own
+    // rectangle. Collect it here and fold it into the alpha in onEndLayer(),
+    // since Aseprite has no separate mask to put it in.
+    m_maskPlane.clear();
+    m_maskValid = false;
+    if (layerRecord.hasMask && !layerRecord.isMaskDisabled() && layerRecord.maskWidth() > 0 &&
+        layerRecord.maskHeight() > 0) {
+      m_maskValid = true;
+      m_maskRect = gfx::Rect(layerRecord.maskLeft,
+                             layerRecord.maskTop,
+                             layerRecord.maskWidth(),
+                             layerRecord.maskHeight());
+      m_maskDefault = layerRecord.maskDefaultColor;
+      m_maskPlane.assign(size_t(m_maskRect.w) * m_maskRect.h, m_maskDefault);
+    }
+
     if (layerRecord.isOpenGroup()) {
       LayerGroup* layerGroup = new LayerGroup(m_sprite);
       if (m_groups.empty())
@@ -262,8 +280,66 @@ public:
     }
   }
 
+  // MODS: multiply the collected mask into the layer's alpha.
+  //
+  // Aseprite has no layer masks, so baking is the only way to keep what the
+  // mask was hiding actually hidden. Outside the mask rectangle the mask's
+  // default color applies, which is how Photoshop describes the area it does
+  // not cover.
+  void applyMask()
+  {
+    if (!m_maskValid || !m_currentImage)
+      return;
+
+    const int w = m_currentImage->width();
+    const int h = m_currentImage->height();
+
+    for (int y = 0; y < h; ++y) {
+      for (int x = 0; x < w; ++x) {
+        const int cx = m_currentOrigin.x + x;
+        const int cy = m_currentOrigin.y + y;
+
+        uint8_t m = m_maskDefault;
+        if (m_maskRect.contains(gfx::Point(cx, cy))) {
+          m = m_maskPlane[size_t(cy - m_maskRect.y) * m_maskRect.w + (cx - m_maskRect.x)];
+        }
+        if (m == 255)
+          continue;
+
+        const doc::color_t px = doc::get_pixel(m_currentImage.get(), x, y);
+        switch (m_currentImage->pixelFormat()) {
+          case doc::IMAGE_RGB: {
+            const int a = doc::rgba_geta(px) * m / 255;
+            doc::put_pixel(m_currentImage.get(),
+                           x,
+                           y,
+                           doc::rgba(doc::rgba_getr(px),
+                                     doc::rgba_getg(px),
+                                     doc::rgba_getb(px),
+                                     a));
+            break;
+          }
+          case doc::IMAGE_GRAYSCALE: {
+            const int a = doc::graya_geta(px) * m / 255;
+            doc::put_pixel(m_currentImage.get(), x, y, doc::graya(doc::graya_getv(px), a));
+            break;
+          }
+          case doc::IMAGE_INDEXED:
+            // An indexed pixel has no alpha to scale, so a mask can only make
+            // it transparent or leave it alone.
+            if (m < 128)
+              doc::put_pixel(m_currentImage.get(), x, y, m_sprite->transparentColor());
+            break;
+          default: break;
+        }
+      }
+    }
+  }
+
   void onEndLayer(const psd::LayerRecord& layerRecord) override
   {
+    applyMask(); // MODS
+
     const bool usesFrameAnimation = (!m_framesInfo.empty() &&
                                      layerRecord.inFrames.size() == m_framesInfo.size());
 
@@ -359,6 +435,17 @@ public:
                        const uint8_t* data,
                        const int bytes) override
   {
+    // MODS: mask channels are not part of the layer image; they have their own
+    // size and are applied to the alpha later.
+    if (chanID == psd::ChannelID::UserSuppliedMask ||
+        chanID == psd::ChannelID::RealUserSuppliedMask) {
+      if (m_maskValid && y >= 0 && y < m_maskRect.h) {
+        const int n = std::min(bytes, m_maskRect.w);
+        std::memcpy(&m_maskPlane[size_t(y) * m_maskRect.w], data, n);
+      }
+      return;
+    }
+
     if (!m_currentImage || y >= m_currentImage->height())
       return;
 
@@ -491,6 +578,11 @@ private:
   std::vector<doc::Layer*> m_layers;
   bool m_sawLayerRecords = false;       // MODS
   gfx::Point m_currentOrigin = gfx::Point(0, 0); // MODS
+  // MODS: layer mask, collected per layer and baked into the alpha.
+  std::vector<uint8_t> m_maskPlane;
+  gfx::Rect m_maskRect;
+  uint8_t m_maskDefault = 0;
+  bool m_maskValid = false;
   std::vector<doc::LayerGroup*> m_groups;
   std::vector<psd::FrameInformation> m_framesInfo;
   Palette m_palette;
