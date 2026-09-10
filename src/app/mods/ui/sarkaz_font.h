@@ -19,9 +19,6 @@ class FontInfo;
 
 namespace app { namespace mods {
 
-// True when the UI language is the Sarkaz one.
-bool sarkaz_language_active();
-
 // Replaces the theme font with Sarkaz.ttf while that language is selected.
 //
 // data/strings/sarkaz.ini is a verbatim copy of the English strings, so on its

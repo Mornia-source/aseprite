@@ -48,6 +48,9 @@
 | S17 | [commands_list.h](../src/app/commands/commands_list.h) | 注册 `ShowPaletteBars` 命令 | 低 | ✅ |
 | S18 | [data/gui.xml](../data/gui.xml) + [en.ini](../data/strings/en.ini) + [zh_Hans.ini](../data/strings/zh_Hans.ini) | 视图菜单项 + 字符串 | 中 | ✅ |
 | S19 | [skin_theme.cpp](../src/app/ui/skin/skin_theme.cpp) | 萨卡兹语的字体替换（2 处接缝），见 §22 | 中 | ✅ |
+| S20 | [main_window.cpp](../src/app/ui/main_window.cpp) | 语言变化时重载主题（字体热切换），见 §23 | 中 | ✅ |
+| S21 | [xml_translator.h/.cpp](../src/app/i18n/xml_translator.cpp) + [widget_loader.cpp](../src/app/widget_loader.cpp) + main_window.cpp | **界面文本实时重译**，见 §23 | 高 | ✅ |
+| S22 | [CMakeLists.txt](../CMakeLists.txt) + [src/ver/CMakeLists.txt](../src/ver/CMakeLists.txt) + [src/ver/info.c](../src/ver/info.c) | `MODS_UPDATE_URL`：更新检查指向自建服务器，见 §24 | 低 | ✅ |
 
 ### 我们自己的文件（无冲突风险，续）
 
@@ -951,3 +954,135 @@ Skia 自动替换（§13.5）用系统字体渲染 —— 界面全变成异世�
 
 > 📌 换 data/ 下的文件后要 `run.cmd --reconfigure`（glob 在 configure 时求值，§13.3），
 > 且**旧文件不会从 `build/bin` 自动删除** —— 换字体时需手动清理，否则会混进打包。
+
+
+---
+
+## 23. 语言切换的实时生效（接缝 S20 / S21）
+
+### 23.1 两个独立问题
+| 现象 | 根因 | 接缝 |
+|---|---|---|
+| 切走后仍是萨卡兹**字体** | 字体在主题加载时选定，换语言不重载主题 | S20 |
+| 切换后**文本**不变 | XML 文本在构造时就把 string id 丢掉了 | S21 |
+
+### 23.2 S20：字体
+模块内用 `g_applied` 记录"当前主题是用萨卡兹字体构建的"，
+与 `sarkaz_language_active()` 比对，不一致就 `ui::set_theme()` 重新生成。
+
+⚠️ **必须延迟执行**：`Strings::LanguageChange` 有多个监听者
+（[tool_box.cpp:171](../src/app/tools/tool_box.cpp:171) 重载工具、
+[keyboard_shortcuts.cpp:95](../src/app/ui/keyboard_shortcuts.cpp:95) 重置键表、
+main_window 重载菜单）。`set_theme()` 会重建所有控件，
+同步调用等于在信号级联**中途**把 UI 抽走。
+→ 用 `ui::execute_from_ui_thread()` 推迟到当前事件之后。
+
+### 23.3 ★S21：文本重译 —— 根因是信息被丢弃★
+```cpp
+// xml_translator.cpp:21 -- 构造时解析，只返回译文
+if (value[0] == '@') return Strings::Translate(value + 1);
+// widget_loader.cpp -- 只存译文
+widget->setText(m_xmlTranslator(elem, "text"));
+```
+控件身上**没有保留 string id**，所以语言变了之后**任何刷新都不可能重译**。
+这就是为什么 stock `MainWindow::onLanguageChange()` 只有
+`m_menuBar->reload()` —— 菜单栏能变是因为它整个从 gui.xml 重建。
+换主题走同一个 `ui::set_theme()`，同样不重译。**上游没有全局重译路径可复用。**
+
+**做法**：把丢掉的 id 记下来。
+| 位置 | 内容 |
+|---|---|
+| `XmlTranslator::stringId()` | 新增，返回解析后的 id（prefix 规则留在原处，避免在调用点复制） |
+| `mods/i18n/retranslate.*` | `I18nTextProperty` 挂在控件上存 id；`retranslate_all()` 递归重查 |
+| `widget_loader.cpp` | 2 处 `setText` 之后挂属性（buttonset item + 通用属性填充） |
+| `main_window.cpp` | `onLanguageChange()` 里对 manager 根控件调用 |
+
+只在文本真的变了时才 `setText`，避免让整棵树无谓失效。
+
+**覆盖不到**（需重启）：C++ 里直接 `setText(Strings::xxx())` 的地方、
+tooltip（存在 TooltipManager 而非控件上）、已构造的下拉项。
+
+---
+
+## 24. 自建更新服务器（接缝 S22）
+
+### 24.1 官方已有的基础设施（几乎不用自己写）
+| 组件 | 位置 |
+|---|---|
+| HTTP 请求 + XML 响应解析 | [src/updater/check_update.cpp](../src/updater/check_update.cpp) |
+| 后台线程、`waitdays` 节流、启动次数统计 | [src/app/check_update.cpp](../src/app/check_update.cpp) |
+| 回调 `onNewUpdate(url, version)` | [check_update_delegate.h](../src/app/check_update_delegate.h) |
+| 首页"有新版本"提示按钮 | home_view |
+
+需要 `ENABLE_UPDATER=ON`（上游默认就是 on）。
+
+### 24.2 为什么不用官方的 `CUSTOM_WEBSITE_URL`
+[info.c:19](../src/ver/info.c:19) 里它替换的是 `WEBSITE` **本身**，
+而下载页、贡献者页都是从 `WEBSITE` 拼出来的：
+```c
+#define WEBSITE_DOWNLOAD     WEBSITE "download/"
+#define WEBSITE_CONTRIBUTORS WEBSITE "contributors/"
+#define WEBSITE_UPDATE       WEBSITE "update/?xml=1"
+```
+用它会把这些链接一并指向我们的服务器。
+⇒ 新增 `MODS_UPDATE_URL`，**只 `#undef` + 重定义 `WEBSITE_UPDATE`**。
+
+### 24.3 用法
+```
+cmake -B build -DMODS_UPDATE_URL="https://你的域名/aseprite/update?xml=1"
+```
+⚠️ **URL 必须自带查询串**（`?xml=1` 之类）——
+[check_update.cpp:104](../src/updater/check_update.cpp:104) 直接往后拼 `&uuid=...`，
+没有 `?` 会拼成非法 URL。
+
+服务器返回的 XML：
+```xml
+<update latest="0" type="major" version="1.3.18.5-99"
+        url="https://你的域名/aseprite-mods-1.3.18.5-99-win64.zip" waitdays="1" />
+```
+- `latest="1"` → 已是最新
+- `type` → `critical` / `major`
+- 版本比较用 `base::Version`，`localVersion < serverVersion` 才提示
+
+### 24.4 实测（本地 Python 服务器）
+```
+REQ: /update?xml=1&inits=263&exits=262
+```
+首页右上角出现「新的 Aseprite v9.9.9 可用！」按钮 —— **整条链路验证通过**。
+
+### 24.5 还没做的：下载与安装
+官方只做到**通知**，`onNewUpdate` 把 url/version 存进 preferences 就结束了。
+要真正"自动在线更新"还需要：
+| # | 内容 |
+|---|---|
+| B | 下载 zip（复用 `net::HttpRequest`，带进度） |
+| C | **完整性校验** —— 至少 SHA-256，最好签名验证（公钥编进程序） |
+| D | 应用更新 —— Windows 上程序不能覆盖自身，需要一个 helper：主程序退出后替换文件再重启 |
+| E | UI：提示 / 进度 / 失败回滚 |
+
+> ⚠️ **安全**：这是一条能在本机下载并执行任意代码的通道。
+> 服务器被入侵或走明文 HTTP 等于交出机器。HTTPS + 校验和 + 签名**不是可选项**。
+> ⚠️ **许可**：更新分发的仍是编译后的 Aseprite 二进制，受 EULA 2(b) 约束（见 §21.4）。
+
+---
+
+## 25. 冗余审查（第二轮，2026-09-10）
+
+统计 mods 模块导出的 13 个函数在模块外的调用点：
+
+| 结果 | 处理 |
+|---|---|
+| 12 个有调用（1~4 处） | 保留 |
+| `sarkaz_language_active()` **0 处** | 只在模块内用了 2 次却暴露在公开头文件 → 收进匿名 namespace |
+
+### 25.1 上游同步难度（相对 upstream/main）
+改动的**官方文件只有 11 个**：
+`timeline.cpp`(+154) / `psd_format.cpp`(+90) / `theme.xml`×2(+35) /
+`main_window.cpp`(+21) / `context_bar.cpp`(+18) / `skin_theme.cpp`(+17) /
+`app/CMakeLists.txt`(+17) / `color_bar.*`(+28) / `commands_list.h`+`gui.xml`(+4) /
+`ver/*`(S22)
+
+上次合并 38 个上游提交**零冲突**，纪律有效。三个风险点：
+1. **`timeline.cpp`** —— 12 个改动点集中在列布局，上游若重构图层面板必冲突
+2. **`src/psd` submodule** —— 提交只在本地，仓库对外不可构建
+3. **`widget_loader.cpp` / `xml_translator`（S21 新增）** —— UI 基础设施，动的频率低但一动就是核心路径

@@ -26,6 +26,15 @@
 #define WEBSITE_NEWS_RSS     HTTP "://blog.aseprite.org/rss"
 #define WEBSITE_UPDATE       WEBSITE "update/?xml=1"
 
+/* MODS: seam S22 -- this build checks for updates on our own server, but the
+   download and contributors links must keep pointing at aseprite.org.
+   CUSTOM_WEBSITE_URL cannot express that: it replaces WEBSITE itself, which
+   every other link is built from. */
+#ifdef MODS_UPDATE_URL
+  #undef WEBSITE_UPDATE
+  #define WEBSITE_UPDATE MODS_UPDATE_URL
+#endif
+
 const char* get_app_name()
 {
   return PACKAGE;

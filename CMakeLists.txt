@@ -97,6 +97,11 @@ option(ENABLE_MODS         "Enable private fork modifications (see docs/MODDING_
 option(ENABLE_DESKTOP_INTEGRATION  "Enable desktop integration modules" off)
 option(ENABLE_QT_THUMBNAILER       "Enable kde5/qt5 thumnailer" off)
 set(CUSTOM_WEBSITE_URL "" CACHE STRING "Enable custom local webserver to check updates")
+# MODS: seam S22 -- redirects only the update check, unlike CUSTOM_WEBSITE_URL
+# which also moves the download and contributors links. The URL must already
+# carry a query string: check_update.cpp appends "&uuid=..." to it.
+# Example: -DMODS_UPDATE_URL=https://example.com/aseprite/update?xml=1
+set(MODS_UPDATE_URL "" CACHE STRING "MODS: private update-check endpoint (see docs/MODDING_NOTES.md)")
 
 if(ENABLE_SENTRY)
   set(SENTRY_DIR "" CACHE STRING "Sentry native location")

@@ -20,6 +20,7 @@
 // MODS: seam S20 -- see docs/MODDING_NOTES.md
 #ifdef ENABLE_MODS
   #include "app/mods/ui/sarkaz_font.h"
+  #include "app/mods/i18n/retranslate.h"
 #endif
 #include "app/ini_file.h"
 #include "app/notification_delegate.h"
@@ -51,6 +52,7 @@
 #include "os/system.h"
 #include "ui/app_state.h"
 #include "ui/drag_event.h"
+#include "ui/manager.h" // MODS: seam S21 (Manager::getDefault)
 #include "ui/message.h"
 #include "ui/splitter.h"
 #include "ui/system.h"
@@ -257,6 +259,15 @@ MainWindow::~MainWindow()
 void MainWindow::onLanguageChange()
 {
   m_menuBar->reload();
+
+  // MODS: seam S21 -- upstream reloads the menu bar alone, so every other
+  // widget kept the previous language until the next start. Widgets built from
+  // XML remember which string their text came from, so look them all up again.
+#ifdef ENABLE_MODS
+  if (auto* manager = ui::Manager::getDefault())
+    mods::retranslate_all(manager);
+#endif
+
   layout();
   invalidate();
 

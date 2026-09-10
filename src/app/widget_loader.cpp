@@ -15,6 +15,10 @@
 
 #include "app/app.h"
 #include "app/i18n/strings.h"
+// MODS: seam S21 -- see docs/MODDING_NOTES.md
+#ifdef ENABLE_MODS
+  #include "app/mods/i18n/retranslate.h"
+#endif
 #include "app/modules/gui.h"
 #include "app/resource_finder.h"
 #include "app/ui/alpha_slider.h"
@@ -481,8 +485,13 @@ Widget* WidgetLoader::convertXmlElementToWidget(const XMLElement* elem,
           item->setIcon(part);
       }
 
-      if (text)
+      if (text) {
         item->setText(m_xmlTranslator(elem, "text"));
+        // MODS: seam S21
+#ifdef ENABLE_MODS
+        mods::remember_text_string_id(item, m_xmlTranslator.stringId(elem, "text"));
+#endif
+      }
 
       buttonset->addItem(item, hspan, vspan);
       fillWidgetWithXmlElementAttributes(elem, root, item);
@@ -588,8 +597,14 @@ void WidgetLoader::fillWidgetWithXmlElementAttributes(const XMLElement* elem,
   if (id)
     widget->setId(id);
 
-  if (elem->Attribute("text"))
+  if (elem->Attribute("text")) {
     widget->setText(m_xmlTranslator(elem, "text"));
+    // MODS: seam S21 -- remember where this text came from so it can be
+    // translated again when the language changes.
+#ifdef ENABLE_MODS
+    mods::remember_text_string_id(widget, m_xmlTranslator.stringId(elem, "text"));
+#endif
+  }
 
   if (elem->Attribute("tooltip") && root) {
     if (!m_tooltipManager) {

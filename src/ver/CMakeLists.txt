@@ -33,3 +33,8 @@ target_include_directories(ver-lib PRIVATE .. "${CMAKE_CURRENT_BINARY_DIR}")
 if(NOT "${CUSTOM_WEBSITE_URL}" STREQUAL "")
   target_compile_definitions(ver-lib PRIVATE -DCUSTOM_WEBSITE_URL="${CUSTOM_WEBSITE_URL}")
 endif()
+
+# MODS: seam S22 -- see docs/MODDING_NOTES.md
+if(NOT "${MODS_UPDATE_URL}" STREQUAL "")
+  target_compile_definitions(ver-lib PRIVATE -DMODS_UPDATE_URL="${MODS_UPDATE_URL}")
+endif()

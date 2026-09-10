@@ -35,12 +35,12 @@ const char* kSarkazFontName = "EndfieldByButan";
 // Whether the theme currently on screen was built with the Sarkaz font.
 bool g_applied = false;
 
-} // anonymous namespace
-
 bool sarkaz_language_active()
 {
   return (Strings::instance()->currentLanguage() == kSarkazLangId);
 }
+
+} // anonymous namespace
 
 bool apply_sarkaz_font(Fonts* fonts,
                        text::FontMgrRef& fontMgr,

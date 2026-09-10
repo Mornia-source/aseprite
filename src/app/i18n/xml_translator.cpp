@@ -35,6 +35,19 @@ std::string XmlTranslator::operator()(const XMLElement* elem, const char* attrNa
     return std::string(value);
 }
 
+// MODS: seam S21 -- mirrors the id resolution in operator() above; keeping it
+// here avoids duplicating the prefix rule at the call sites.
+std::string XmlTranslator::stringId(const XMLElement* elem, const char* attrName) const
+{
+  const char* value = elem->Attribute(attrName);
+  if (!value || value[0] != '@')
+    return std::string();
+
+  if (value[1] == '.')
+    return m_stringIdPrefix + (value + 1);
+  return std::string(value + 1);
+}
+
 void XmlTranslator::clearStringIdPrefix()
 {
   m_stringIdPrefix.clear();

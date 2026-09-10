@@ -178,6 +178,7 @@ if(ENABLE_MODS)
   target_compile_definitions(app-lib PUBLIC -DENABLE_MODS)
   target_sources(app-lib PRIVATE
     mods/commands/cmd_palette_bars.cpp
+    mods/i18n/retranslate.cpp
     mods/tools/tool_opacity.cpp
     mods/ui/layer_thumbnail.cpp
     mods/ui/palette_bars.cpp

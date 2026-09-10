@@ -21,6 +21,12 @@ class XmlTranslator {
 public:
   std::string operator()(const tinyxml2::XMLElement* elem, const char* attrName);
 
+  // MODS: seam S21 -- the string id `attrName` resolves to, or an empty string
+  // when the attribute is missing or holds a literal. operator() throws the id
+  // away once it has produced the text, which leaves nothing to translate again
+  // when the language changes. See docs/MODDING_NOTES.md.
+  std::string stringId(const tinyxml2::XMLElement* elem, const char* attrName) const;
+
   void clearStringIdPrefix();
   void setStringIdPrefix(const char* prefix);
 
