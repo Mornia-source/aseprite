@@ -17,6 +17,10 @@
 #include "app/commands/commands.h"
 #include "app/crash/data_recovery.h"
 #include "app/i18n/strings.h"
+// MODS: seam S20 -- see docs/MODDING_NOTES.md
+#ifdef ENABLE_MODS
+  #include "app/mods/ui/sarkaz_font.h"
+#endif
 #include "app/ini_file.h"
 #include "app/notification_delegate.h"
 #include "app/pref/preferences.h"
@@ -50,6 +54,7 @@
 #include "ui/message.h"
 #include "ui/splitter.h"
 #include "ui/system.h"
+#include "ui/theme.h" // MODS: seam S20 (ui::set_theme)
 #include "ui/view.h"
 
 #ifdef ENABLE_SCRIPTING
@@ -254,6 +259,22 @@ void MainWindow::onLanguageChange()
   m_menuBar->reload();
   layout();
   invalidate();
+
+  // MODS: seam S20 -- the Sarkaz language picks its font while the theme
+  // loads, and changing the language does not reload the theme by itself, so
+  // the UI kept the Sarkaz glyphs after switching away from it. Regenerate the
+  // theme when the font and the language no longer agree.
+  //
+  // Deferred on purpose: LanguageChange has several other listeners (the tool
+  // box, the key tables), and set_theme() rebuilds every widget. Doing that
+  // synchronously here would pull the UI out from under the listeners that
+  // have not run yet.
+#ifdef ENABLE_MODS
+  if (mods::sarkaz_font_out_of_sync()) {
+    ui::execute_from_ui_thread(
+      [] { ui::set_theme(ui::get_theme(), Preferences::instance().general.uiScale()); });
+  }
+#endif
 }
 
 DocView* MainWindow::getDocView()

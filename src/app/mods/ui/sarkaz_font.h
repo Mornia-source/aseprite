@@ -40,6 +40,14 @@ bool apply_sarkaz_font(Fonts* fonts,
                        text::FontRef& outFont,
                        FontInfo& outFontInfo);
 
+// True when the font the theme is currently drawing with no longer matches the
+// selected language, so the theme has to be regenerated.
+//
+// The font is chosen while the theme loads, and changing the language does not
+// reload the theme by itself: without this the UI kept the Sarkaz glyphs after
+// switching away from it.
+bool sarkaz_font_out_of_sync();
+
 }} // namespace app::mods
 
 #endif

@@ -32,6 +32,9 @@ const char* kSarkazLangId = "sarkaz";
 // Registered once under this name so repeated theme reloads reuse it.
 const char* kSarkazFontName = "EndfieldByButan";
 
+// Whether the theme currently on screen was built with the Sarkaz font.
+bool g_applied = false;
+
 } // anonymous namespace
 
 bool sarkaz_language_active()
@@ -45,8 +48,13 @@ bool apply_sarkaz_font(Fonts* fonts,
                        text::FontRef& outFont,
                        FontInfo& outFontInfo)
 {
-  if (!fonts || !sarkaz_language_active())
+  if (!fonts)
     return false;
+
+  if (!sarkaz_language_active()) {
+    g_applied = false;
+    return false;
+  }
 
   FontData* fontData = fonts->fontDataByName(kSarkazFontName);
   if (!fontData) {
@@ -73,7 +81,13 @@ bool apply_sarkaz_font(Fonts* fonts,
 
   outFont = font;
   outFontInfo = FontInfo(fontData, size);
+  g_applied = true;
   return true;
+}
+
+bool sarkaz_font_out_of_sync()
+{
+  return (g_applied != sarkaz_language_active());
 }
 
 }} // namespace app::mods
