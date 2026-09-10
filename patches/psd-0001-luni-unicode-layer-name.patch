@@ -1,0 +1,92 @@
+From 080e99980da6550276d8fd07f513397d7177ee2a Mon Sep 17 00:00:00 2001
+From: MorniaOwO <c1594962681@gmail.com>
+Date: Thu, 10 Sep 2026 09:23:31 +0800
+Subject: [PATCH] psd: use the Unicode layer name from the "luni" block
+
+The decoder parsed the "luni" additional-layer-info block but only traced
+it and threw the result away, so layer names came from the legacy Pascal
+string instead. That string is in the writer's system codepage, which we
+cannot know, so non-Latin names were mojibake -- and because those bytes
+are not valid UTF-8, they crashed the host application's text shaper.
+
+Convert the UTF-16 name to UTF-8 (handling surrogate pairs) and store it
+in LayerRecord::name, overriding the legacy string.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ decoder.cpp | 52 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 52 insertions(+)
+
+diff --git a/decoder.cpp b/decoder.cpp
+index ac3131c..ecc3b9c 100644
+--- a/decoder.cpp
++++ b/decoder.cpp
+@@ -13,6 +13,55 @@
+ 
+ namespace psd {
+ 
++// MODS: PSD stores layer names twice: a legacy Pascal string in the system
++// codepage (unusable -- we cannot know which codepage), and a "luni" block
++// holding the real Unicode name. Upstream parsed "luni" but threw the result
++// away, so non-Latin layer names came out as mojibake AND, because the legacy
++// bytes are not valid UTF-8, crashed the GUI text shaper.
++// This converts the UTF-16 name into UTF-8. std::wstring is 16-bit on Windows
++// and 32-bit elsewhere, so handle both.
++static std::string mods_wide_to_utf8(const std::wstring& in)
++{
++  std::string out;
++  out.reserve(in.size() * 3);
++
++  for (size_t i = 0; i < in.size(); ++i) {
++    uint32_t cp = uint32_t(in[i]);
++
++    // Combine UTF-16 surrogate pairs (only possible when wchar_t is 16-bit).
++    if (cp >= 0xD800 && cp <= 0xDBFF && (i + 1) < in.size()) {
++      const uint32_t lo = uint32_t(in[i + 1]);
++      if (lo >= 0xDC00 && lo <= 0xDFFF) {
++        cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
++        ++i;
++      }
++    }
++    // A lone surrogate or an out-of-range value is not encodable.
++    if ((cp >= 0xD800 && cp <= 0xDFFF) || cp > 0x10FFFF)
++      cp = 0xFFFD;
++
++    if (cp < 0x80) {
++      out += char(cp);
++    }
++    else if (cp < 0x800) {
++      out += char(0xC0 | (cp >> 6));
++      out += char(0x80 | (cp & 0x3F));
++    }
++    else if (cp < 0x10000) {
++      out += char(0xE0 | (cp >> 12));
++      out += char(0x80 | ((cp >> 6) & 0x3F));
++      out += char(0x80 | (cp & 0x3F));
++    }
++    else {
++      out += char(0xF0 | (cp >> 18));
++      out += char(0x80 | ((cp >> 12) & 0x3F));
++      out += char(0x80 | ((cp >> 6) & 0x3F));
++      out += char(0x80 | (cp & 0x3F));
++    }
++  }
++  return out;
++}
++
+ Decoder::Decoder(FileInterface* file,
+                  DecoderDelegate* delegate)
+   : m_delegate(delegate)
+@@ -593,6 +642,9 @@ uint64_t Decoder::readAdditionalLayerInfo(LayerRecord& layerRecord)
+     const std::wstring layerName = getUnicodeString();
+     if (!layerName.empty()) {
+       TRACE("Layer name parsed: %ls\n", layerName.c_str());
++      // MODS: actually use it. The Unicode name wins over the legacy Pascal
++      // string, which is in an unknown system codepage.
++      layerRecord.name = mods_wide_to_utf8(layerName);
+     }
+   }
+   else if (key == LayerInfoKey::lyid) {
+-- 
+2.55.0.windows.5
+
