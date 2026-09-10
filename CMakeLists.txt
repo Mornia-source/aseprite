@@ -102,6 +102,9 @@ set(CUSTOM_WEBSITE_URL "" CACHE STRING "Enable custom local webserver to check u
 # carry a query string: check_update.cpp appends "&uuid=..." to it.
 # Example: -DMODS_UPDATE_URL=https://example.com/aseprite/update?xml=1
 set(MODS_UPDATE_URL "" CACHE STRING "MODS: private update-check endpoint (see docs/MODDING_NOTES.md)")
+# MODS: seam S25 -- appended to the window title after the version, to mark
+# builds that must not leave the people they were built for.
+set(MODS_TITLE_SUFFIX "" CACHE STRING "MODS: text appended to the window title")
 
 if(ENABLE_SENTRY)
   set(SENTRY_DIR "" CACHE STRING "Sentry native location")

@@ -15,6 +15,18 @@
       <link text="Igara Studio S.A." url="https://igara.com/" />
     </hbox>
     <link text="https://www.aseprite.org/" url="https://www.aseprite.org/" />
+
+    <!-- MODS: seam S24 -- everything above is upstream and describes Aseprite
+         itself; everything below says what this particular build is, so the two
+         are not confused. See docs/MODDING_NOTES.md. -->
+    <separator horizontal="true" />
+    <label text="@.mods_heading" />
+    <label text="@.mods_what" />
+    <label text="@.mods_features" />
+    <label text="@.mods_notaffiliated" />
+    <label text="@.mods_license" />
+    <link text="@.mods_repo" url="https://github.com/Mornia-source/aseprite" />
+
     <hbox>
       <boxfiller />
       <button text="@general.close" closewindow="true" id="ok" magnet="true" minwidth="60" />

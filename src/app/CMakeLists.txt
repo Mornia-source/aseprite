@@ -176,13 +176,17 @@ endif()
 # MODS: private fork modifications -- see docs/MODDING_NOTES.md (seam S2)
 if(ENABLE_MODS)
   target_compile_definitions(app-lib PUBLIC -DENABLE_MODS)
+  # MODS: seam S25
+  if(NOT "${MODS_TITLE_SUFFIX}" STREQUAL "")
+    target_compile_definitions(app-lib PUBLIC -DMODS_TITLE_SUFFIX="${MODS_TITLE_SUFFIX}")
+  endif()
   target_sources(app-lib PRIVATE
     mods/commands/cmd_palette_bars.cpp
     mods/i18n/retranslate.cpp
     mods/tools/tool_opacity.cpp
     mods/ui/layer_thumbnail.cpp
     mods/ui/palette_bars.cpp
-    mods/ui/sarkaz_font.cpp)
+    mods/ui/conlang_font.cpp)
 endif()
 
 # Extras

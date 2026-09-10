@@ -814,6 +814,13 @@ void App::updateDisplayTitleBar()
       defaultTitle += " (x86)";
     }
 #endif
+
+    // MODS: seam S25 -- mark this build in the title bar. Appended after the
+    // architecture suffixes above so it always ends up last.
+#ifdef MODS_TITLE_SUFFIX
+    defaultTitle += " - ";
+    defaultTitle += MODS_TITLE_SUFFIX;
+#endif
   }
 
   DocView* docView = UIContext::instance()->activeView();

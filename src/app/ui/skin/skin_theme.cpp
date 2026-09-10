@@ -20,7 +20,7 @@
 #include "app/modules/gui.h"
 // MODS: seam S19 -- see docs/MODDING_NOTES.md
 #ifdef ENABLE_MODS
-  #include "app/mods/ui/sarkaz_font.h"
+  #include "app/mods/ui/conlang_font.h"
 #endif
 #include "app/pref/preferences.h"
 #include "app/resource_finder.h"
@@ -624,16 +624,17 @@ void SkinTheme::loadXml(BackwardCompatibility* backward)
     }
   }
 
-  // MODS: seam S19 -- the Sarkaz language is English text drawn in the Kazdel
-  // script, so selecting it swaps the theme font rather than the strings.
-  // Applied after the user font so an explicit font choice still wins.
+  // MODS: seam S19 -- the constructed-script languages ship real translations
+  // and get their script from the font, so selecting one swaps the theme font
+  // rather than the strings. Applied after the user font so an explicit font
+  // choice still wins.
 #ifdef ENABLE_MODS
   {
     const float sarkazSize = 10.0f * ui::guiscale();
     if (pref.theme.font().empty())
-      mods::apply_sarkaz_font(fonts, m_fontMgr, sarkazSize, m_defaultFont, m_defaultFontInfo);
+      mods::apply_conlang_font(fonts, m_fontMgr, sarkazSize, m_defaultFont, m_defaultFontInfo);
     if (pref.theme.miniFont().empty())
-      mods::apply_sarkaz_font(fonts, m_fontMgr, sarkazSize, m_miniFont, m_miniFontInfo);
+      mods::apply_conlang_font(fonts, m_fontMgr, sarkazSize, m_miniFont, m_miniFontInfo);
   }
 #endif
 

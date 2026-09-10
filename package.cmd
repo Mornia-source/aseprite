@@ -107,7 +107,11 @@ rem ============================================================================
 >>"%~1" echo   Saving to .psd is NOT implemented yet.
 >>"%~1" echo * The pixel font used by the official release, so Chinese and other
 >>"%~1" echo   scripts render at the same size and baseline as Latin text.
->>"%~1" echo * The 23 languages the official release ships. Edit ^> Preferences.
+>>"%~1" echo * The 23 languages the official release ships, plus three written
+>>"%~1" echo   in invented scripts: Sarkaz, Seaborn and Far North Runes. Those
+>>"%~1" echo   ship a real translation and get their script from a font, so the
+>>"%~1" echo   words are ordinary English or Norwegian, just unreadable.
+>>"%~1" echo   Edit ^> Preferences ^> General ^> Language.
 >>"%~1" echo.
 >>"%~1" echo Known limitations
 >>"%~1" echo -----------------

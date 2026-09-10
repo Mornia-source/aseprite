@@ -19,7 +19,7 @@
 #include "app/i18n/strings.h"
 // MODS: seam S20 -- see docs/MODDING_NOTES.md
 #ifdef ENABLE_MODS
-  #include "app/mods/ui/sarkaz_font.h"
+  #include "app/mods/ui/conlang_font.h"
   #include "app/mods/i18n/retranslate.h"
 #endif
 #include "app/ini_file.h"
@@ -271,9 +271,9 @@ void MainWindow::onLanguageChange()
   layout();
   invalidate();
 
-  // MODS: seam S20 -- the Sarkaz language picks its font while the theme
-  // loads, and changing the language does not reload the theme by itself, so
-  // the UI kept the Sarkaz glyphs after switching away from it. Regenerate the
+  // MODS: seam S20 -- a constructed-script language picks its font while the
+  // theme loads, and changing the language does not reload the theme by itself,
+  // so the UI kept the invented glyphs after switching away. Regenerate the
   // theme when the font and the language no longer agree.
   //
   // Deferred on purpose: LanguageChange has several other listeners (the tool
@@ -281,7 +281,7 @@ void MainWindow::onLanguageChange()
   // synchronously here would pull the UI out from under the listeners that
   // have not run yet.
 #ifdef ENABLE_MODS
-  if (mods::sarkaz_font_out_of_sync()) {
+  if (mods::conlang_font_out_of_sync()) {
     ui::execute_from_ui_thread(
       [] { ui::set_theme(ui::get_theme(), Preferences::instance().general.uiScale()); });
   }

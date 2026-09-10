@@ -1075,35 +1075,12 @@
         <separator />
         <item command="Refresh" text="@.view_refresh" group="view_screen" />
       </menu>
+      <!-- MODS: seam S23 -- this build keeps only About. The links all point at
+           aseprite.org resources that describe the official product, which this
+           is not. app_menus.cpp deletes "enter_license" here when DRM is off;
+           findChild() returning null and the group lookup failing are both
+           handled, so dropping those items is safe. -->
       <menu text="@.help" id="help_menu">
-        <item command="OpenBrowser" text="@.help_readme" group="help_readme">
-          <param name="filename" value="README.md" />
-        </item>
-        <separator />
-        <item command="Launch" text="@.help_quick_reference">
-          <param name="type" value="url" />
-          <param name="path" value="/quickref/" />
-        </item>
-        <item command="Launch" text="@.help_documentation">
-          <param name="type" value="url" />
-          <param name="path" value="/docs/" />
-        </item>
-        <item command="Launch" text="@.help_tutorial" group="help_docs">
-          <param name="type" value="url" />
-          <param name="path" value="/tutorial/" />
-        </item>
-        <separator />
-        <item command="Launch" text="@.help_release_notes">
-          <param name="type" value="url" />
-          <param name="path" value="/release-notes/" />
-        </item>
-        <item command="Launch" text="@.help_twitter" group="help_news">
-          <param name="type" value="url" />
-          <param name="path" value="http://twitter.com/aseprite" />
-        </item>
-        <separator id="enter_license_separator" />
-        <item command="EnterLicense" id="enter_license" text="@.help_enter_license" group="help_enter_license" />
-        <separator />
         <item command="About" text="@.help_about" group="help_about" />
       </menu>
     </menu>

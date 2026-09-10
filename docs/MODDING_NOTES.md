@@ -51,6 +51,9 @@
 | S20 | [main_window.cpp](../src/app/ui/main_window.cpp) | 语言变化时重载主题（字体热切换），见 §23 | 中 | ✅ |
 | S21 | [xml_translator.h/.cpp](../src/app/i18n/xml_translator.cpp) + [widget_loader.cpp](../src/app/widget_loader.cpp) + main_window.cpp | **界面文本实时重译**，见 §23 | 高 | ✅ |
 | S22 | [CMakeLists.txt](../CMakeLists.txt) + [src/ver/CMakeLists.txt](../src/ver/CMakeLists.txt) + [src/ver/info.c](../src/ver/info.c) | `MODS_UPDATE_URL`：更新检查指向自建服务器，见 §24 | 低 | ✅ |
+| S23 | [data/gui.xml](../data/gui.xml) | 帮助菜单只保留「关于」，见 §26 | 中 | ✅ |
+| S24 | [about.xml](../data/widgets/about.xml) + en.ini + zh_Hans.ini | 「关于」增加本构建的说明与声明，见 §26 | 中 | ✅ |
+| S25 | [CMakeLists.txt](../CMakeLists.txt) + [src/app/CMakeLists.txt](../src/app/CMakeLists.txt) + [src/app/app.cpp](../src/app/app.cpp) | `MODS_TITLE_SUFFIX`：标题栏后缀，见 §26.3 | 低 | ✅ |
 
 ### 我们自己的文件（无冲突风险，续）
 
@@ -1086,3 +1089,72 @@ REQ: /update?xml=1&inits=263&exits=262
 1. **`timeline.cpp`** —— 12 个改动点集中在列布局，上游若重构图层面板必冲突
 2. **`src/psd` submodule** —— 提交只在本地，仓库对外不可构建
 3. **`widget_loader.cpp` / `xml_translator`（S21 新增）** —— UI 基础设施，动的频率低但一动就是核心路径
+
+
+---
+
+## 26. 帮助菜单精简 + 关于对话框 + 标题栏（接缝 S23/S24/S25）
+
+### 26.1 帮助菜单只留「关于」（S23）
+原有 8 个条目全部指向 aseprite.org 上描述**官方产品**的资源，
+而本构建不是官方产品，留着会误导。
+
+**安全性已验证**：[app_menus.cpp:396-405](../src/app/app_menus.cpp:396) 会在
+非 DRM 构建下删除 `enter_license` 相关条目 ——
+用的是 `findChild()`（返回空则 `delete nullptr`，安全）
+和 `m_groups.find()`（找不到就跳过 erase）。
+另外 `help_readme`/`help_docs`/`help_news`/`help_about` 这些 group **代码里零引用**。
+⇒ 删掉这些条目不会破坏任何逻辑。**但 `<menu id="help_menu">` 必须保留**
+（[app_menus.cpp:791](../src/app/app_menus.cpp:791) 用它设置 `m_helpMenuitem`）。
+
+### 26.2 关于对话框（S24）
+官方内容**原样保留**（标题、作者/译者/开源项目链接、Igara 版权、官网），
+下方用分隔线隔开我们自己的部分：私有构建声明、新增功能摘要、
+**与 Igara Studio 无从属关系**的声明、EULA 与购买正版提示、本构建源码链接。
+
+文案做成可翻译字符串（`[about]` 段的 `mods_*`，en + zh_Hans），
+与软件其余部分一致 —— about.xml 的 string id prefix 是 widget id `about`
+（[widget_loader.cpp:93](../src/app/widget_loader.cpp:93)）。
+
+> ⚠️ 已知：「Open Source Projects」链接指向 `docs/LICENSES.md`，
+> 而本工作区删掉了该文件，链接在我们的构建里是**死的**。未处理。
+
+### 26.3 标题栏后缀（S25）
+```
+cmake -B build -DMODS_TITLE_SUFFIX="内部使用  严禁外传"
+```
+在 [app.cpp:820](../src/app/app.cpp:820) 追加，位置在架构后缀
+（`(x64)`/`(x86)`）**之后**，保证永远在最末。
+结果：`Aseprite v1.3.18.5-16-g... - 内部使用  严禁外传`
+
+---
+
+## 27. 造字语言（§22 扩展为三种）
+
+`sarkaz_font.*` 已重构为表驱动的 [conlang_font.*](../src/app/mods/ui/conlang_font.cpp)，
+避免为每种语言复制一份模块。新增语言只需往 `kFonts` 表加一行 + 一个 ini。
+
+| 语言 | 显示名 | 文本底本 | 字体 | 覆盖 |
+|---|---|---|---|---|
+| `sarkaz` | Sarkaz 萨卡兹语（Kazdel） | 英文 | EndfieldByButan.ttf | 全部可打印 ASCII（含数字） |
+| `seaborn` | Seaborn 海嗣文（Ægir） | 英文 | AgeFonts001.ttf | 字母+数字，标点仅 ` %-./` |
+| `farnorth` | Far North Runes 极北卢恩文字（Sami） | **挪威尼诺斯克语** | FarNorthRunes-Heavy.ttf | 全 ASCII + ÆØÅÄÖ + **Þ Ð** |
+
+### 27.1 ★为什么 farnorth 用尼诺斯克语而不是芬兰语★
+原计划用芬兰语，但上游 strings 仓库的 **`fi.ini` 只有 2 字节 —— 是空占位文件**，
+芬兰语翻译根本没做。可选的北欧语言实际完成度：
+
+| 语言 | 大小 |
+|---|---|
+| `fi`（芬兰语） | **2 bytes（空）** |
+| `nn`（尼诺斯克） | 75,874 |
+| `da`（丹麦语） | 75,414 |
+| `sv`（瑞典语） | 78,315（**不在官方 23 种内**） |
+
+选 `nn`：完整、**已在我们发布的 23 种语言内**（无需额外引入）、
+北欧语系、且 FarNorthRunes 覆盖它全部特殊字符。
+
+### 27.2 退路仍在
+三个字体都不含 CJK，所以显示名里的中文（`萨卡兹语`/`海嗣文`/`极北卢恩文字`）
+会经 Skia 自动替换用系统字体渲染 —— 界面全变成异世界文字后，
+仍能靠中文在语言下拉里找回来。**别把显示名改成纯拉丁。**
