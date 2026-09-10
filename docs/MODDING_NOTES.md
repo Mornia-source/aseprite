@@ -38,7 +38,7 @@
 | S7 | [data/strings/en.ini](../data/strings/en.ini) | 新增字符串 key | 低 | ☐ |
 | S8 | [src/CMakeLists.txt](../src/CMakeLists.txt) `:155` | 把 `README.md`/`AUTHORS.md`/`EULA.txt`/`docs/LICENSES.md` 的复制改成 `if(EXISTS)` 可选（本仓库删掉了其中几个，原代码会 configure 报错） | 中 | ✅ |
 | S9 | [src/app/file/psd_format.cpp](../src/app/file/psd_format.cpp) | PSD bug 修复 B/C/D，见 §12 | 中 | ✅ |
-| **S10** | **[src/psd/decoder.cpp](../src/psd/decoder.cpp)** | PSD bug 修复 A，见 §12。⚠️ **这是 submodule（aseprite/psd 独立仓库）**，需单独 fork 跟踪 | 中 | ✅ |
+| **S10** | **[src/psd/decoder.cpp](../src/psd/decoder.cpp)** | PSD bug 修复 A，见 §12。submodule 已 fork 至 `Mornia-source/psd`，见 §28 | 中 | ✅ |
 | S11 | [theme.xml](../data/extensions/aseprite-theme/theme.xml) + [dark/theme.xml](../data/extensions/aseprite-theme/dark/theme.xml) | `<fonts>` 块换成 Zfull-GB 像素字体（照搬官方发行版），见 §13 | 中 | ✅ |
 | S12 | [timeline.cpp](../src/app/ui/timeline/timeline.cpp) | 表头缩略图开关按钮 `PART_HEADER_THUMBNAILS`，见 §3 的 P9~P12 | 高 | ✅ |
 | S13 | [data/strings/](../data/strings/) | 提交官方发布的 23 种语言（`ENABLE_I18N_STRINGS` 保持官方默认 off），见 §15 | 低 | ✅ |
@@ -633,7 +633,7 @@ Aseprite (点阵像素字体 aseprite_font.png，仅拉丁字符，字高约 9px
 - [ ] F1：修 `lsct` 虚假图层 bug（§12.6）
 - [ ] F1：**ZIP 解压**（见 §4.1.1，用 `third_party/zlib`），否则 16/32bit 的真实 PS 文件会静默出错
 - [ ] F1：CMYK/Lab 色彩模式转换
-- [ ] 用户替换 `data/mods/icons/layer_thumbnails.png` 为手绘图标（当前是占位图）
+- [x] 缩略图开关图标 —— 占位图已被采纳为正式图标，不再更换
 - [ ] S5：`SelectLayerBounds` 命令注册（让 Lua 插件也能调）
 - [ ] 跑 `tests/` 回归，确认插件支持无损
 - [ ] 考虑：图层组行是否合成子图层缩略图（当前留空）
@@ -1162,3 +1162,55 @@ cmake -B build -DMODS_TITLE_SUFFIX="内部使用  严禁外传"
 三个字体都不含 CJK，所以显示名里的中文（`萨卡兹语`/`海嗣文`/`极北卢恩文字`）
 会经 Skia 自动替换用系统字体渲染 —— 界面全变成异世界文字后，
 仍能靠中文在语言下拉里找回来。**别把显示名改成纯拉丁。**
+
+
+---
+
+## 28. src/psd submodule 的 fork（2026-09-10，已解决）
+
+### 28.1 问题
+中文图层名的修复（§12.4 的 A）在 `src/psd` 里，而 `.gitmodules` 指向
+`https://github.com/aseprite/psd.git` —— 我们的提交 `080e999` **不在那里**。
+
+后果（当时已取证：`git branch -r --contains 080e999` 返回空）：
+
+| 场景 | 结果 |
+|---|---|
+| 本机开发 | 正常（对象在本地 submodule 仓库里） |
+| 他人 / 换机器 `clone --recursive` | ❌ 拉不到该 SHA，`src/psd` 空目录，**编译失败** |
+| 本机误跑 `git submodule update` | ❌ 试图 checkout 不存在的 SHA，**修复被冲掉** |
+| GitHub 网页 | 显示为无法解析的断链 |
+
+即：**仓库处于"只有这一台机器能编译"的状态**。
+
+### 28.2 处理
+```
+gh repo fork aseprite/psd --clone=false     # -> Mornia-source/psd
+cd src/psd && git push fork HEAD:main       # 推上我们的提交
+# .gitmodules: url -> https://github.com/Mornia-source/psd.git
+git submodule sync -- src/psd
+git remote set-url origin <fork>            # submodule 内部也切过去
+```
+
+> ✅ **许可**：`src/psd` 是 **MIT**（LICENSE.txt: *"free of charge... to use, copy,
+> modify, merge, publish"*），fork 并公开发布**完全合规** ——
+> 与外层受 EULA 约束的 Aseprite 主体不同，这一点要分清。
+
+### 28.3 验证（全新克隆实测）
+```
+git clone --depth 1 https://github.com/Mornia-source/aseprite.git <tmp>
+git submodule update --init src/psd
+→ Submodule path 'src/psd': checked out '080e999...'
+→ decoder.cpp 中 mods_wide_to_utf8 引用 2 处 ✓
+```
+**仓库现在对外可构建。**
+
+### 28.4 后续同步上游 psd 的方法
+fork 里保留 upstream 远端即可：
+```
+cd src/psd
+git remote add upstream https://github.com/aseprite/psd.git
+git fetch upstream && git rebase upstream/main
+git push --force-with-lease origin main
+cd ../.. && git add src/psd && git commit    # 更新父仓库的 gitlink
+```
