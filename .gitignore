@@ -22,3 +22,6 @@ CMakeSettings.json
 # MODS: local build helper scripts (see docs/MODDING_NOTES.md section 7.3)
 _configure.cmd
 _build.cmd
+
+# MODS: packaging output
+dist

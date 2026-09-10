@@ -53,6 +53,7 @@
 | 文件 | 作用 |
 |---|---|
 | [run.cmd](../run.cmd) | **一键 configure+编译+启动**，见 §7.5 |
+| [package.cmd](../package.cmd) | **打包成可移植 zip**，见 §21 |
 | [data/mods/icons/layer_thumbnails.png](../data/mods/icons/layer_thumbnails.png) | 缩略图开关图标（24×12，两帧，黑色蒙版） |
 
 ### 我们自己的文件（无冲突风险）
@@ -861,3 +862,45 @@ const gfx::Rect inner = area.shrink(scale);  // ← area 也被缩小了！
 - 两条渐变带（RGB / HSV 可辨） ✅
 - 从渐变带左键取色到前景 ✅
 - `app.command.ShowPaletteBars()` 可被 **Lua 插件调用** ✅，菜单加载无告警 ✅
+
+
+---
+
+## 21. 打包（[package.cmd](../package.cmd)）
+
+```
+package.cmd            先编译再打包到 distpackage.cmd --nobuild  直接打包 buildin 现有产物
+```
+
+产出 `dist\Aseprite-mods-<版本>-win64{,.zip}`，约 **16.5 MB**。
+
+### 21.1 包内容
+| 项 | 说明 |
+|---|---|
+| `aseprite.exe` | 21 MB |
+| `icudtl.dat` | Skia 的 ICU 数据 |
+| `data/` | 主题、字体、23 种语言、widgets、扩展、`data/mods/icons` |
+| `README.txt` | 功能说明 + 已知限制 + 许可声明 |
+
+**刻意排除**：`*.pdb`（约 160 MB 调试符号）、`gen.exe`（构建期代码生成器）、
+`data/strings.git`（关掉 `ENABLE_I18N_STRINGS` 后残留的空目录，
+但**语言扫描器仍会读它**，见 §18.4）、测试用的 `*.lua` / `*.psd`。
+
+### 21.2 自包含性（已验证）
+`dumpbin /dependents` 显示只依赖 Windows 系统 DLL —— 静态链接
+（`CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded`），**无需 VC 运行库**。
+实测解压到全新目录可直接运行：版本号正确、PSD 导入正常
+（268×80 / 中文图层名 / 4 隐藏）、`app.command.ShowPaletteBars()` 可调用、GUI 中文正常。
+
+### 21.3 版本号
+来自 `aseprite.exe --version`，而该字符串由 **configure 时**的 `git describe` 生成
+（上游 `cac270ceb`）。所以**提交之后要重新 configure**，否则版本号是旧的。
+带 `-dirty` 后缀表示打包时工作区不干净。
+
+### 21.4 ⚠️ 许可
+Aseprite 由 Igara Studio S.A. 以 **EULA** 授权，**不是**开源许可：
+- **2(b) Distribution**：不得向第三方分发副本
+- **2(g) Source code**：只能为**个人目的**编译和修改源码
+
+即"自己编译自用/备份"允许，**分发编译产物给他人是明文禁止的**。
+`README.txt` 里附了这段声明和官方购买链接。

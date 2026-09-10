@@ -1,0 +1,129 @@
+@echo off
+rem ============================================================================
+rem MODS: build a portable, self-contained folder + zip of this fork.
+rem
+rem   package.cmd            build (if needed) and package into dist\
+rem   package.cmd --nobuild  package whatever is already in build\bin
+rem
+rem The result runs from any folder with no installation: everything links
+rem statically, so only Windows' own DLLs are needed.
+rem
+rem NOTE Aseprite's EULA section 2(b) forbids distributing compiled copies to
+rem third parties, and 2(g) limits compiling it to your own personal purpose.
+rem This packages the build for your own machines; what you do with it is your
+rem call as the licensee.
+rem ============================================================================
+setlocal EnableDelayedExpansion
+
+set "REPO=%~dp0"
+set "REPO=%REPO:~0,-1%"
+set "BIN=%REPO%\build\bin"
+set "DIST=%REPO%\dist"
+
+if /i "%~1"=="--nobuild" goto :nobuild
+call "%REPO%\run.cmd" --build
+if errorlevel 1 (
+    echo [pkg] ERROR: build failed, not packaging.
+    exit /b 1
+)
+:nobuild
+
+if not exist "%BIN%\aseprite.exe" (
+    echo [pkg] ERROR: %BIN%\aseprite.exe not found. Run run.cmd --build first.
+    exit /b 1
+)
+
+rem ---- version, from the executable itself ------------------------------------
+set "VER="
+for /f "tokens=2" %%v in ('"%BIN%\aseprite.exe" --version') do set "VER=%%v"
+if "!VER!"=="" set "VER=unknown"
+set "NAME=Aseprite-mods-!VER!-win64"
+set "STAGE=%DIST%\!NAME!"
+
+echo [pkg] version  : !VER!
+echo [pkg] staging  : !STAGE!
+
+if exist "!STAGE!" rmdir /s /q "!STAGE!"
+mkdir "!STAGE!" 2>nul
+
+rem ---- payload ----------------------------------------------------------------
+rem Only what the program needs at run time. Excluded on purpose:
+rem   *.pdb          debug symbols, ~160 MB and useless to a user
+rem   gen.exe        build-time code generator
+rem   data\strings.git  empty leftover from ENABLE_I18N_STRINGS
+rem   *.lua *.psd    scratch files from testing
+copy /y "%BIN%\aseprite.exe" "!STAGE!\" >nul
+if exist "%BIN%\icudtl.dat" copy /y "%BIN%\icudtl.dat" "!STAGE!\" >nul
+
+robocopy "%BIN%\data" "!STAGE!\data" /e /njh /njs /ndl /nc /ns /np /xd "strings.git" >nul
+if errorlevel 8 (
+    echo [pkg] ERROR: copying data\ failed.
+    exit /b 1
+)
+
+rem ---- the notes that ship with it --------------------------------------------
+call :writereadme "!STAGE!\README.txt" "!VER!"
+
+rem ---- zip --------------------------------------------------------------------
+set "ZIP=%DIST%\!NAME!.zip"
+if exist "!ZIP!" del /q "!ZIP!"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "Compress-Archive -Path '!STAGE!' -DestinationPath '!ZIP!' -CompressionLevel Optimal" || (
+    echo [pkg] ERROR: Compress-Archive failed.
+    exit /b 1
+)
+
+echo.
+echo [pkg] folder : !STAGE!
+echo [pkg] zip    : !ZIP!
+for %%f in ("!ZIP!") do echo [pkg] size   : %%~zf bytes
+exit /b 0
+
+rem ============================================================================
+:writereadme
+> "%~1" echo Aseprite %~2 -- private build
+>>"%~1" echo ============================================
+>>"%~1" echo.
+>>"%~1" echo A portable build of Aseprite compiled from a modified source tree.
+>>"%~1" echo Unzip anywhere and run aseprite.exe. No installation, no runtime to
+>>"%~1" echo install: everything is linked statically.
+>>"%~1" echo.
+>>"%~1" echo Settings live in %%APPDATA%%\Aseprite, the same place the official
+>>"%~1" echo build uses, so the two share preferences and installed extensions.
+>>"%~1" echo.
+>>"%~1" echo What this build adds
+>>"%~1" echo --------------------
+>>"%~1" echo * Per-layer thumbnails in the timeline, with a header button to
+>>"%~1" echo   toggle them. Ctrl+click a thumbnail to select that layer's
+>>"%~1" echo   content as a selection (+Shift add, +Alt subtract).
+>>"%~1" echo * Three gradient ramps above the palette. Click an end swatch to
+>>"%~1" echo   store the foreground (left button) or background (right button)
+>>"%~1" echo   color; pick from the bands the same way. View ^> Palette Bars.
+>>"%~1" echo * Opacity for the pencil and the other plain paint tools, in the
+>>"%~1" echo   tool options bar.
+>>"%~1" echo * .psd import is enabled and several import bugs are fixed:
+>>"%~1" echo   non-Latin layer names no longer crash on open, non-square files
+>>"%~1" echo   open at the right size, and layer visibility is kept.
+>>"%~1" echo   Saving to .psd is NOT implemented yet.
+>>"%~1" echo * The pixel font used by the official release, so Chinese and other
+>>"%~1" echo   scripts render at the same size and baseline as Latin text.
+>>"%~1" echo * The 23 languages the official release ships. Edit ^> Preferences.
+>>"%~1" echo.
+>>"%~1" echo Known limitations
+>>"%~1" echo -----------------
+>>"%~1" echo * PSD: no layer masks, no adjustment layers, no layer effects and no
+>>"%~1" echo   ZIP-compressed data. Such layers import flattened, empty or blank
+>>"%~1" echo   rather than reporting anything, so check the result.
+>>"%~1" echo * Palette ramp colors are written when Aseprite exits normally; a
+>>"%~1" echo   forced kill loses them.
+>>"%~1" echo.
+>>"%~1" echo License
+>>"%~1" echo -------
+>>"%~1" echo Aseprite is licensed by Igara Studio S.A. under its EULA, not under
+>>"%~1" echo an open-source license. Section 2(b) says copies may not be
+>>"%~1" echo distributed to third parties, and 2(g) allows compiling the source
+>>"%~1" echo only for your own personal purpose. If you want Aseprite, buy it:
+>>"%~1" echo   https://www.aseprite.org/
+>>"%~1" echo.
+>>"%~1" echo Upstream source: https://github.com/aseprite/aseprite
+exit /b 0
