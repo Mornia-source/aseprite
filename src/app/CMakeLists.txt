@@ -190,6 +190,18 @@ if(ENABLE_MODS)
     mods/ui/palette_bars.cpp
     mods/ui/plugin_panel.cpp
     mods/ui/conlang_font.cpp)
+  # The updater half of the mods module only exists when the official updater
+  # is built at all -- it hangs off its "new version" notification.
+  if(ENABLE_UPDATER)
+    target_sources(app-lib PRIVATE
+      mods/updater/sha256.cpp
+      mods/updater/update_download.cpp
+      mods/updater/update_install.cpp
+      mods/ui/update_dialog.cpp)
+    if(WIN32)
+      target_link_libraries(app-lib bcrypt) # SHA-256 for verifying downloads.
+    endif()
+  endif()
 endif()
 
 # Extras

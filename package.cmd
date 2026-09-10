@@ -73,10 +73,25 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     exit /b 1
 )
 
+rem ---- update manifest ---------------------------------------------------------
+rem The sidecar the in-app updater reads before downloading: it refuses to
+rem install a package whose sha256 does not match this file. Upload it next to
+rem the zip, named "<zip name>.json". See docs/MODDING_NOTES.md 33.
+set "MANIFEST=!ZIP!.json"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$f = Get-Item '!ZIP!';" ^
+  "$h = (Get-FileHash -Algorithm SHA256 $f.FullName).Hash.ToLower();" ^
+  "$j = [ordered]@{ sha256 = $h; size = $f.Length; version = '!VER!' } | ConvertTo-Json;" ^
+  "[System.IO.File]::WriteAllText('!MANIFEST!', $j)" || (
+    echo [pkg] ERROR: could not write the update manifest.
+    exit /b 1
+)
+
 echo.
-echo [pkg] folder : !STAGE!
-echo [pkg] zip    : !ZIP!
-for %%f in ("!ZIP!") do echo [pkg] size   : %%~zf bytes
+echo [pkg] folder   : !STAGE!
+echo [pkg] zip      : !ZIP!
+for %%f in ("!ZIP!") do echo [pkg] size     : %%~zf bytes
+echo [pkg] manifest : !MANIFEST!
 exit /b 0
 
 rem ============================================================================
@@ -101,10 +116,11 @@ rem ============================================================================
 >>"%~1" echo   color; pick from the bands the same way. View ^> Palette Bars.
 >>"%~1" echo * Opacity for the pencil and the other plain paint tools, in the
 >>"%~1" echo   tool options bar.
->>"%~1" echo * .psd import is enabled and several import bugs are fixed:
->>"%~1" echo   non-Latin layer names no longer crash on open, non-square files
->>"%~1" echo   open at the right size, and layer visibility is kept.
->>"%~1" echo   Saving to .psd is NOT implemented yet.
+>>"%~1" echo * .psd support: open and save. Layers, groups, blend modes, opacity,
+>>"%~1" echo   visibility and layer masks all survive the round trip, and both
+>>"%~1" echo   RLE- and ZIP-compressed files open. Several import bugs are fixed:
+>>"%~1" echo   non-Latin layer names no longer crash on open and non-square
+>>"%~1" echo   files open at the right size. Saving writes the current frame.
 >>"%~1" echo * The pixel font used by the official release, so Chinese and other
 >>"%~1" echo   scripts render at the same size and baseline as Latin text.
 >>"%~1" echo * The 23 languages the official release ships, plus three written
@@ -112,12 +128,17 @@ rem ============================================================================
 >>"%~1" echo   ship a real translation and get their script from a font, so the
 >>"%~1" echo   words are ordinary English or Norwegian, just unreadable.
 >>"%~1" echo   Edit ^> Preferences ^> General ^> Language.
+>>"%~1" echo * Scripts can dock a panel in the main window with app.panel{}.
+>>"%~1" echo * Update checks and in-app updating go to our own server, not to
+>>"%~1" echo   aseprite.org. A download is installed only if it matches the
+>>"%~1" echo   checksum the server published.
 >>"%~1" echo.
 >>"%~1" echo Known limitations
 >>"%~1" echo -----------------
->>"%~1" echo * PSD: no layer masks, no adjustment layers, no layer effects and no
->>"%~1" echo   ZIP-compressed data. Such layers import flattened, empty or blank
->>"%~1" echo   rather than reporting anything, so check the result.
+>>"%~1" echo * PSD: no adjustment layers, no layer effects, no CMYK or Lab color
+>>"%~1" echo   and no 32-bit channels. Files using those report an error on open
+>>"%~1" echo   rather than opening wrong. Saving writes one frame, since PSD has
+>>"%~1" echo   no equivalent of Aseprite's frames.
 >>"%~1" echo * Palette ramp colors are written when Aseprite exits normally; a
 >>"%~1" echo   forced kill loses them.
 >>"%~1" echo.

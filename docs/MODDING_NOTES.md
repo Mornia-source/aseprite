@@ -1462,3 +1462,86 @@ collapse into one function.
 
 `MainWindow::customizableDock()` was already public upstream, so docking needs
 no seam of its own.
+
+## §33 在线更新：下载 / 校验 / 安装（接缝 S29）
+
+§24 只做到「服务器说有新版本」。这一节把 B/C/D/E 四步补齐。
+
+### 33.1 复用了什么
+官方**已经写好**了下载安装对话框 [aseprite_update.cpp](../src/app/ui/aseprite_update.cpp)
+和它的 [aseprite_update.xml](../data/widgets/aseprite_update.xml)，
+但引擎在闭源的 `drm/` 库里，我们没有，所以整个功能在我们的构建里是死的。
+
+⇒ **只复用 XML 布局**（`gen::AsepriteUpdate` 照常生成），引擎自己写。
+好处：没有新增任何 widget XML，上游改这个对话框我们零维护。
+
+### 33.2 清单是 sidecar，不是 XML 属性
+校验和必须来自服务器。最直接的做法是往 `<update>` XML 上加属性，
+但那个 XML 由 [src/updater/check_update.cpp](../src/updater/check_update.cpp) 解析 ——
+**上游文件**，加属性就等于每次合并都要重新打补丁。
+
+⇒ 改成读 `<包 URL>.json` 这个 sidecar：
+```json
+{ "sha256": "<64 位十六进制>", "size": 16745600, "version": "1.3.18.5-26" }
+```
+`package.cmd` 打包时自动生成，和 zip 放在一起上传即可。
+
+> ⚠️ PowerShell 5.1 的 `Set-Content -Encoding utf8` **会写 BOM**，JSON 解析器不吃。
+> 打包脚本改用 `[System.IO.File]::WriteAllText`；读取侧也顺手跳过 BOM。
+
+### 33.3 安全边界
+| 措施 | 位置 |
+|---|---|
+| 只接受 `https://` | `is_secure_update_url()`，清单和包各查一次 |
+| SHA-256 必须匹配才解包 | `Installer::run()`，Windows CNG (`bcrypt`) 实现 |
+| 摘要格式不合法一律不算匹配 | `sha256_equal()` 要求两边都是 64 位十六进制 |
+| 拒绝 `..` / 绝对路径 / NTFS 流 | `safe_entry_name()` |
+
+摘要只能证明「这个包确实是服务器要发布的那个」，
+**不能**证明包里的东西是安全的 —— 所以路径检查照做。
+
+### 33.4 为什么安装要靠一个批处理
+Windows 不允许替换**正在运行**的可执行文件，所以换文件必须发生在我们退出之后。
+`Installer::apply()` 往临时目录写一个 `apply-update.cmd` 并启动它：
+
+1. 轮询 `tasklist` 等我们的 PID 消失
+2. `robocopy` 把现有安装备份一份
+3. `robocopy` 把新版覆盖上去
+4. 覆盖后 `aseprite.exe` 不存在 → 用备份**回滚**
+5. 重启，然后另起一个进程删掉整个工作目录（含脚本自身）
+
+几个坑：
+- **robocopy 的退出码 < 8 都算成功**，所以判断写 `if errorlevel 8`，不是 `errorlevel 1`
+- 用户可能在退出时**取消**（有未保存的文件）。等待循环因此有上限：
+  约 600 次 ≈ 10 分钟，超时就清理走人，不动已装好的版本
+- 批处理**没有**转义引号的办法，路径里含 `"` 或 `%` 直接拒绝执行（`batch_quote()`）
+
+### 33.5 文件与接缝
+| 文件 | 作用 |
+|---|---|
+| `src/app/mods/updater/sha256.{h,cpp}` | SHA-256（Windows CNG） |
+| `src/app/mods/updater/update_download.{h,cpp}` | 清单获取 + 带进度/可中断的下载 |
+| `src/app/mods/updater/update_install.{h,cpp}` | 校验、解包、生成并启动 helper |
+| `src/app/mods/ui/update_dialog.{h,cpp}` | 串起以上三步的对话框 |
+| `package.cmd` | 生成 `<zip>.json` 清单 |
+
+| Id | 文件 | 内容 |
+|---|---|---|
+| S29 | [home_view.cpp](../src/app/ui/home_view.cpp) | 「有新版本」按钮改为打开我们的对话框（8 行，`#elif defined(ENABLE_MODS) && defined(ENABLE_UPDATER)`） |
+
+进度靠一个计数用的 `std::streambuf` 包住输出流实现 ——
+`net::HttpResponse::write()` 不是虚函数，但**流是我们给的**，
+于是不用改 net-lib 就能拿到进度。
+
+### 33.6 已验证
+| 项 | 结果 |
+|---|---|
+| `sha256_file()` 对 1 MB 随机数据 | 与 `sha256sum` 逐字节一致 |
+| 文件不存在 | 返回空串（空串永远不匹配 ⇒ 不会安装） |
+| `sha256_equal` 大小写无关 / 拒绝短摘要 / 拒绝空串 | ✅ |
+| `manifest_url_for` 带与不带查询串 | `a.zip.json` / `a.zip.json?t=1` |
+| `is_secure_update_url` | `https`/`HTTPS` 通过；`http`/`file`/空 拒绝 |
+| `package.cmd` 生成的清单 | sha256 与 size 与实际 zip 一致 |
+
+**未离线验证**（需要真实服务器，留给实机测试）：
+下载进度、解包、helper 替换与回滚。

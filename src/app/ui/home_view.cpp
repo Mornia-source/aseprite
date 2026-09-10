@@ -11,6 +11,10 @@
 
 #include "app/ui/home_view.h"
 
+#if defined(ENABLE_MODS) && defined(ENABLE_UPDATER)
+  #include "app/mods/ui/update_dialog.h"
+#endif
+
 #include "app/app.h"
 #include "app/app_menus.h"
 #include "app/commands/commands.h"
@@ -309,6 +313,14 @@ void HomeView::onNewUpdate(const std::string& url, const std::string& version)
       dlg.openWindowInForeground();
     });
   }
+  #elif defined(ENABLE_MODS) && defined(ENABLE_UPDATER)
+  // MODS: seam S29 -- the official build only links to a download page. Ours
+  // downloads, verifies and installs. See docs/MODDING_NOTES.md §33
+  checkUpdate()->setUrl("");
+  checkUpdate()->Click.connect([url, version] {
+    mods::UpdateDialog dlg(url, version);
+    dlg.openWindowInForeground();
+  });
   #else
   checkUpdate()->setUrl(url);
   #endif
