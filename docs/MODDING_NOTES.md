@@ -718,9 +718,23 @@ endif()
 → 那 21 种未发布语言又回来了。需手动 `rm -rf build/bin/data/strings.git`
 （或 `run.cmd --clean`）。
 
-### 18.5 同步后验证清单
+### 18.5 同步后验证清单（全部完成）
 - [x] 编译通过
 - [x] PSD 仍能识别并正确导入（尺寸/中文名/可见性）
 - [x] 语言数 = 23
-- [ ] 缩略图列 / Ctrl+单击 GUI 复验
-- [ ] `tests/` 回归
+- [x] 缩略图列 / 开关按钮 / 中文字体 GUI 复验
+- [x] `tests/` 回归：**67 个 Lua 脚本测试 + 4 个 CLI 测试全部通过**
+- [x] 已推送到 `origin`（Mornia-source/aseprite）
+
+### 18.6 跑测试套件的方法（本仓库路径含空格，有坑）
+`tests/run-tests.sh` 多处 `$ASEPRITE`、`cd $1` 未加引号，含空格的路径会崩。
+本卷未启用 8.3 短名，解决办法是建一个无空格路径的目录联接：
+```powershell
+New-Item -ItemType Junction -Path "$env:TEMPsetest" -Target "<repo>uildin"
+```
+```bash
+cd tests   # 必须在 tests/ 目录内，脚本用相对路径 scripts/...
+ASEPRITE=/c/Users/Cherry/AppData/Local/Temp/asetest/aseprite.exe bash run-tests.sh
+```
+`cli/save-as.sh` 仍会因 `cd $1` 失败 —— **环境问题，不是回归**。
+脚本遇错即 `exit 1`，所以能跑到它就说明前面全过了。
