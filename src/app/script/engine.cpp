@@ -18,6 +18,9 @@
 #include "app/file/file_format.h"
 #include "app/pref/preferences.h"
 #include "app/script/blend_mode.h"
+#ifdef ENABLE_MODS
+  #include "app/mods/ui/plugin_panel.h"
+#endif
 #include "app/script/luacpp.h"
 #include "app/script/require.h"
 #include "app/script/security.h"
@@ -541,6 +544,11 @@ Engine::~Engine()
 
 void Engine::destroy()
 {
+#ifdef ENABLE_MODS
+  // MODS: seam S28 -- panels borrow a dialog's widgets, so they must hand them
+  // back before the dialogs go away. See docs/MODDING_NOTES.md
+  mods::PluginPanel::closeAll();
+#endif
   close_all_dialogs();
   lua_close(L);
   L = nullptr;

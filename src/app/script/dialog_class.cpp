@@ -20,6 +20,10 @@
 #include "app/script/graphics_context.h"
 #include "app/script/keys.h"
 #include "app/script/luacpp.h"
+// MODS: seam S26 -- see docs/MODDING_NOTES.md
+#ifdef ENABLE_MODS
+  #include "app/mods/script/dialog_content.h"
+#endif
 #include "app/script/tabs_widget.h"
 #include "app/ui/button_set.h"
 #include "app/ui/color_button.h"
@@ -2050,6 +2054,9 @@ int Dialog_set_bounds(lua_State* L)
   return 0;
 }
 
+// MODS: seam S26 -- the Dialog type is local to this file, so the docked-panel
+// API cannot reach it. Hand out the widget that holds a dialog's content, so a
+// panel can adopt it instead of reimplementing every control.
 const luaL_Reg Dialog_methods[] = {
   { "__gc",      Dialog_gc        },
   { "show",      Dialog_show      },
@@ -2107,4 +2114,32 @@ void close_all_dialogs()
   }
 }
 
+// MODS: seam S26 -- see docs/MODDING_NOTES.md
+#ifdef ENABLE_MODS
+// Dialog lives in the anonymous namespace, so the lookup has to happen in
+// here; app::mods::dialog_content() below is only the part that needs external
+// linkage, and it forwards to this.
+ui::Widget* mods_dialog_content_impl(lua_State* L, int index)
+{
+  if (auto dlg = may_get_obj<Dialog>(L, index))
+    return dlg->window.grid();
+  return nullptr;
+}
+#endif
+
 }} // namespace app::script
+
+// MODS: seam S26 -- external-linkage half of the bridge, in app::mods where the
+// panel API expects it.
+#ifdef ENABLE_MODS
+namespace app { namespace script {
+ui::Widget* mods_dialog_content_impl(lua_State* L, int index);
+}} // namespace app::script
+
+namespace app { namespace mods {
+ui::Widget* dialog_content(lua_State* L, int index)
+{
+  return app::script::mods_dialog_content_impl(L, index);
+}
+}} // namespace app::mods
+#endif

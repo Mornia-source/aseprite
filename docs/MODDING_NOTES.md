@@ -1411,3 +1411,54 @@ Aseprite 没有"图层蒙版"这个概念，所以只能**烘进 alpha** —— 
 | **蒙版被禁用**（flags bit 1） | alpha 全 255，蒙版正确忽略 |
 
 回归：真实 PS 文件、带图层组的 PSD 均正常。
+
+## §32 Plugin docking panels (`app.panel`)
+
+Scripts could only open floating `Dialog` windows. `app.panel{}` docks one into
+the main window instead, next to the timeline and the color bar.
+
+**API**
+
+```lua
+app.panel{ dialog=<Dialog>, id="unique-id", title="Shown title", side="right" }  -- "left"|"right"|"bottom"
+app.closePanel("unique-id")  --> true if a panel was closed
+```
+
+Re-registering an id replaces the previous panel, so a script can be re-run
+without stacking copies.
+
+**Why it adopts a Dialog instead of defining its own widgets.** Every widget
+`Dialog` offers then works in a panel with no second implementation to keep in
+step with upstream, and scripts already know the API. The cost is a lifetime
+rule: the panel borrows the dialog's grid, so the script must keep the dialog
+referenced (a global) while the panel is docked. `close()` returns the grid to
+its original parent, so the dialog is still usable afterwards.
+
+**Files**
+
+| File | Role |
+|---|---|
+| `src/app/mods/ui/plugin_panel.{h,cpp}` | `PluginPanel : ui::VBox, app::Dockable`; the registry of live panels |
+| `src/app/mods/script/panel_api.{h,cpp}` | `App_panel`, `App_closePanel` |
+| `src/app/mods/script/dialog_content.h` | declares the one bridge function |
+| `docs/examples/panel_demo.lua` | demo |
+
+**Seams**
+
+| Id | File | What |
+|---|---|---|
+| S26 | `src/app/script/dialog_class.cpp` | `app::mods::dialog_content()` -- reaches a `Dialog`'s grid |
+| S27 | `src/app/script/app_object.cpp` | registers `panel` / `closePanel` in `App_methods[]` |
+| S28 | `src/app/script/engine.cpp` | `PluginPanel::closeAll()` before `close_all_dialogs()` |
+
+S26 is the awkward one. `Dialog` is declared inside an anonymous namespace in
+`dialog_class.cpp`, so it cannot be named from another namespace. The bridge is
+therefore split: `mods_dialog_content_impl()` sits in `app::script` proper --
+where the anonymous namespace's names are still visible, and where it gets
+external linkage -- and a three-line `app::mods::dialog_content()` at the end of
+the file forwards to it. Both halves are inside `#ifdef ENABLE_MODS`. If
+upstream ever moves `Dialog` out of the anonymous namespace, the forwarder can
+collapse into one function.
+
+`MainWindow::customizableDock()` was already public upstream, so docking needs
+no seam of its own.

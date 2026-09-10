@@ -183,10 +183,12 @@ if(ENABLE_MODS)
   target_sources(app-lib PRIVATE
     mods/commands/cmd_palette_bars.cpp
     mods/file/psd_encoder.cpp
+    mods/script/panel_api.cpp
     mods/i18n/retranslate.cpp
     mods/tools/tool_opacity.cpp
     mods/ui/layer_thumbnail.cpp
     mods/ui/palette_bars.cpp
+    mods/ui/plugin_panel.cpp
     mods/ui/conlang_font.cpp)
 endif()
 

@@ -23,6 +23,10 @@
 #include "app/modules/palettes.h"
 #include "app/pref/preferences.h"
 #include "app/script/api_version.h"
+// MODS: seam S27
+#ifdef ENABLE_MODS
+  #include "app/mods/script/panel_api.h"
+#endif
 #include "app/script/docobj.h"
 #include "app/script/engine.h"
 #include "app/script/luacpp.h"
@@ -875,6 +879,11 @@ int App_set_defaultPalette(lua_State* L)
 }
 
 const luaL_Reg App_methods[] = {
+  // MODS: seam S27 -- docked panels for scripts. See docs/MODDING_NOTES.md.
+#ifdef ENABLE_MODS
+  { "panel",       mods::App_panel      },
+  { "closePanel",  mods::App_closePanel },
+#endif
   { "open",        App_open        },
   { "exit",        App_exit        },
   { "transaction", App_transaction },
