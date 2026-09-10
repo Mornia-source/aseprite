@@ -393,9 +393,54 @@ upstream 在 [decoder.cpp:592](../src/psd/decoder.cpp:592) **解析了 `luni` �
 > ⚠️ 探测脚本用 Lua `%q` 打印会把 `0x9D` 之类字节转义成 `\157`，看起来像乱码但其实是**打印假象**。
 > 核验编码要 dump 十六进制。
 
-### 12.6 顺带发现（未修）
-- 打开 Lua 脚本导出的 PSD 时，时间轴末尾多出 `Layer 1` / `Group` / `Frame 1` 三个虚假图层
-  —— decoder 没正确跳过图层组的 `lsct` 闭合记录
+### 12.6 图层组导入错乱（已修，2026-09-10）
+
+**现象**：打开带图层组的 PSD，多出 `Layer 1` / `Group` / `Frame 1` 三个虚假图层，
+且组是空的、真实图层全被摊到顶层。
+
+**取证**：直接解析 PSD 的 layer records，看到真实结构是
+```
+[0] </Layer Frame 1 >  lsct=3   ← 分隔符
+[1..3] RedBox/GreenBar/BlueDot
+[4] </Layer AGroup >   lsct=3
+[5] InGroup
+[6] AGroup             lsct=1   ← 展开的组
+[7] Frame 1            lsct=2   ← 折叠的组
+```
+
+**两个独立缺陷**：
+
+**(a) `isCloseGroup()` 漏了折叠的组**（[psd.h](../src/psd/psd.h)，submodule）
+```cpp
+bool isCloseGroup() const { return sectionType == SectionType::OpenFolder; }  // 只认 lsct=1
+```
+枚举是 `Others=0, OpenFolder=1, CloseFolder=2, BoundingSection=3`。
+PSD 里 **1=展开的组、2=折叠的组，两者都是组的头记录**。
+lsct=2 掉进"普通图层"分支 → 变成假图层，且它本该关闭的组永远拿不到名字。
+
+> 📌 记录顺序是**自下而上**的：组先出现分隔符(3)、内容、最后是带名字的
+> 折叠/展开记录。按文件顺序读时，分隔符是组的**开始**、折叠记录是**结束** ——
+> 所以 `isOpenGroup`/`isCloseGroup` 的命名看着是反的，其实逻辑没错。
+
+**(b) ★`onBeginImage` 把当前组打回根★**（[psd_format.cpp](../src/app/file/psd_format.cpp)）
+```cpp
+if (m_layers.empty()) {          // m_layers 只统计"图像层"
+  m_layerGroup = m_sprite->root();   // ← 破坏性副作用
+  createNewLayer("Layer 1");
+}
+```
+本意是"PSD 完全没有图层记录时造一个层"。但当**文件第一条记录是组分隔符**时：
+组刚建好、`m_layers` 仍为空 → 既造出假的 `Layer 1`，又把 `m_layerGroup` 重置成根，
+**后续所有图层都跑到了顶层**。
+→ 改用 `m_sawLayerRecords`（在 `onBeginLayer` 里对**任何**记录置位）判断。
+
+**修复后**：结构与 PSD 内容一一对应，真实 PS 文件无回归。
+
+### 12.6.1 顺带发现（未修）
+`onLayersAndMask` 按**索引**把 `layersInfo.layers[i]` 对应到 `m_layers[i]`，
+但前者含组记录、后者只有图像层。有组时两者数量不等，
+被 `layersInfo.layers.size() == m_layers.size()` 整块跳过
+→ **有图层组的 PSD，混合模式和 cel 位置根本没被应用**。
 
 ### 12.7 图层可见性丢失（已修）
 

@@ -187,6 +187,9 @@ public:
   // is about to be read
   void onBeginLayer(const psd::LayerRecord& layerRecord) override
   {
+    // MODS: any record counts, including the group dividers -- see onBeginImage.
+    m_sawLayerRecords = true;
+
     if (layerRecord.isOpenGroup()) {
       LayerGroup* layerGroup = new LayerGroup(m_sprite);
       if (m_groups.empty())
@@ -289,8 +292,14 @@ public:
   void onBeginImage(const psd::ImageData& imageData) override
   {
     if (!m_currentImage) {
-      // Only occurs where there's an image with no layer
-      if (m_layers.empty()) {
+      // Only occurs where there's an image with no layer.
+      //
+      // MODS: this used to test m_layers.empty(), which counts image layers
+      // only. When the first record in the file was a group divider the group
+      // existed but no image layer did yet, so this fired: it invented a
+      // "Layer 1" and, worse, reset m_layerGroup to the root, so every layer
+      // that followed was added at the top level instead of inside its group.
+      if (!m_sawLayerRecords) {
         m_layerGroup = m_sprite->root();
         createNewLayer("Layer 1");
         m_layerHasTransparentChannel = hasTransparency(imageData.channels.size());
@@ -459,6 +468,7 @@ private:
   uint32_t m_activeFrameIndex;
   PixelFormat m_pixelFormat;
   std::vector<doc::Layer*> m_layers;
+  bool m_sawLayerRecords = false; // MODS
   std::vector<doc::LayerGroup*> m_groups;
   std::vector<psd::FrameInformation> m_framesInfo;
   Palette m_palette;
