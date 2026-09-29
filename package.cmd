@@ -55,7 +55,7 @@ rem   *.lua *.psd    scratch files from testing
 copy /y "%BIN%\aseprite.exe" "!STAGE!\" >nul
 if exist "%BIN%\icudtl.dat" copy /y "%BIN%\icudtl.dat" "!STAGE!\" >nul
 rem File Explorer thumbnails; Help > File Association registers it.
-if exist "%BIN%seprite-thumbnailer.dll" copy /y "%BIN%seprite-thumbnailer.dll" "!STAGE!\" >nul
+if exist "%BIN%\aseprite-thumbnailer.dll" copy /y "%BIN%\aseprite-thumbnailer.dll" "!STAGE!\" >nul
 
 robocopy "%BIN%\data" "!STAGE!\data" /e /njh /njs /ndl /nc /ns /np /xd "strings.git" >nul
 if errorlevel 8 (
