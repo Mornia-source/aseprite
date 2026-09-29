@@ -54,6 +54,8 @@ rem   data\strings.git  empty leftover from ENABLE_I18N_STRINGS
 rem   *.lua *.psd    scratch files from testing
 copy /y "%BIN%\aseprite.exe" "!STAGE!\" >nul
 if exist "%BIN%\icudtl.dat" copy /y "%BIN%\icudtl.dat" "!STAGE!\" >nul
+rem File Explorer thumbnails; Help > File Association registers it.
+if exist "%BIN%seprite-thumbnailer.dll" copy /y "%BIN%seprite-thumbnailer.dll" "!STAGE!\" >nul
 
 robocopy "%BIN%\data" "!STAGE!\data" /e /njh /njs /ndl /nc /ns /np /xd "strings.git" >nul
 if errorlevel 8 (
@@ -129,6 +131,11 @@ rem ============================================================================
 >>"%~1" echo   words are ordinary English or Norwegian, just unreadable.
 >>"%~1" echo   Edit ^> Preferences ^> General ^> Language.
 >>"%~1" echo * Scripts can dock a panel in the main window with app.panel{}.
+>>"%~1" echo * Layer ^> Layers to Frames: the bottom layer becomes frame 1, the
+>>"%~1" echo   next one up frame 2, and so on.
+>>"%~1" echo * Help ^> File Association: open .ase/.aseprite with this copy and
+>>"%~1" echo   show their canvas as File Explorer thumbnails. Per user, no admin
+>>"%~1" echo   rights; run it again after moving this folder.
 >>"%~1" echo * Update checks and in-app updating go to our own server, not to
 >>"%~1" echo   aseprite.org. A download is installed only if it matches the
 >>"%~1" echo   checksum the server published.

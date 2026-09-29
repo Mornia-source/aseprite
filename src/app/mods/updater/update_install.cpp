@@ -27,6 +27,8 @@
 #include <fstream>
 
 #if LAF_WINDOWS
+  #include "app/win/thumbnails.h"
+
   #include <windows.h>
 #endif
 
@@ -275,6 +277,7 @@ bool Installer::apply(std::string& error)
   }
 
   const std::string pid = std::to_string((unsigned)base::get_current_process_id());
+  const std::string thumbnailer = app::win::kAsepriteThumbnailerDllName;
 
   // Windows will not let a running executable be replaced, so the swap has to
   // happen after we exit and therefore lives in a script:
@@ -304,15 +307,20 @@ bool Installer::apply(std::string& error)
   cmd += ")\r\n";
   cmd += "robocopy " + qTarget + " " + qBackup + " /E /NFL /NDL /NJH /NJS /R:2 /W:1 >nul\r\n";
   cmd += "if errorlevel 8 goto failed\r\n";
+  // File Explorer keeps the thumbnailer DLL loaded, and a loaded DLL cannot
+  // be overwritten. Copy everything else first -- a failure there is real --
+  // then try the DLL on its own and live with it staying at the old version.
   cmd += "robocopy " + qSource + " " + qTarget +
-         " /E /IS /IT /NFL /NDL /NJH /NJS /R:3 /W:1 >nul\r\n";
+         " /E /IS /IT /XF " + thumbnailer + " /NFL /NDL /NJH /NJS /R:3 /W:1 >nul\r\n";
   cmd += "if errorlevel 8 goto rollback\r\n";
+  cmd += "robocopy " + qSource + " " + qTarget + " " + thumbnailer +
+         " /IS /IT /NFL /NDL /NJH /NJS /R:1 /W:1 >nul\r\n";
   cmd += "if not exist " + qExe + " goto rollback\r\n";
   cmd += "start \"\" " + qExe + "\r\n";
   cmd += "goto cleanup\r\n";
   cmd += ":rollback\r\n";
   cmd += "robocopy " + qBackup + " " + qTarget +
-         " /E /IS /IT /NFL /NDL /NJH /NJS /R:3 /W:1 >nul\r\n";
+         " /E /IS /IT /XF " + thumbnailer + " /NFL /NDL /NJH /NJS /R:3 /W:1 >nul\r\n";
   cmd += "start \"\" " + qExe + "\r\n";
   cmd += ":failed\r\n";
   cmd += ":cleanup\r\n";

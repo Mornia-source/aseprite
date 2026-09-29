@@ -153,6 +153,8 @@ FOR_EACH_COMMAND(ShowExtras)
 FOR_EACH_COMMAND(ShowGrid)
 // MODS: seam S17 -- see docs/MODDING_NOTES.md
 FOR_EACH_COMMAND(ShowPaletteBars)
+FOR_EACH_COMMAND(FileAssociation)
+FOR_EACH_COMMAND(LayersToFrames)
 FOR_EACH_COMMAND(ShowLayerEdges)
 FOR_EACH_COMMAND(ShowMenu)
 FOR_EACH_COMMAND(ShowOnionSkin)

@@ -1545,3 +1545,68 @@ Windows 不允许替换**正在运行**的可执行文件，所以换文件必�
 
 **未离线验证**（需要真实服务器，留给实机测试）：
 下载进度、解包、helper 替换与回滚。
+
+## §34 文件关联 + 资源管理器缩略图（帮助 → 文件关联）
+
+### 34.1 几乎全是官方现成的
+| 组件 | 位置 | 状态 |
+|---|---|---|
+| 缩略图 COM DLL（`IThumbnailProvider`，MIT） | [src/desktop/win](../src/desktop/win) | 有，但默认 `ENABLE_DESKTOP_INTEGRATION=OFF` 不编译 |
+| 注册 DLL + 右下角图标叠加（`TypeOverlay`） | [desktop/win/helpers.h](../src/desktop/win/helpers.h) | 有 |
+| 扩展名 → `AsepriteFile`（图标、打开命令、DDE） | [app/win/file_associations.cpp](../src/app/win/file_associations.cpp) | 有 |
+| 首选项里的缩略图开关 | [cmd_options.cpp](../src/app/commands/cmd_options.cpp) | 有 |
+
+**缺的是官方安装器负责的那一步** —— 我们是免安装包，没有人去调用它们。
+新命令只是把这几块串起来，**没有重写任何注册逻辑**。
+
+### 34.2 不需要「检索本机所有文件」
+关联是**按扩展名**注册的（`HKCU\Software\Classes\.aseprite` → `AsepriteFile`），
+一次注册对本机所有同扩展名文件生效，无需扫描磁盘。
+
+### 34.3 用户选择（UserChoice）
+如果用户以前在「打开方式」里给 `.aseprite` 选过别的程序，Windows 会记在
+`...\FileExts\.aseprite\UserChoice`，**带哈希保护，只有系统设置能写**。
+此时我们的注册不生效。**不伪造哈希**（那正是 Windows 禁止的行为），
+而是检测出来后提示用户，并提供按钮打开 `ms-settings:defaultapps`。
+
+### 34.4 注意
+- 全部写在 **HKCU**：不需要管理员权限，不影响本机其他账户
+- 免安装包**移动了文件夹**，注册表里的路径就失效了 → 重新执行一次即可
+- `.ase` 也是 Adobe Swatch Exchange（色板交换）的扩展名，关联后它们也会由 Aseprite 打开
+- 「移除」只删指向 `AsepriteFile` 的关联，别的程序已占用的保持不动
+
+### 34.5 缩略图 DLL 会被资源管理器锁住 → 影响 §33 更新器
+资源管理器加载 DLL 后，文件无法被覆盖。§33 的更新脚本原本用 robocopy 整体覆盖，
+遇到被锁的 DLL 会失败 ⇒ 触发**整体回滚** ⇒ **更新永远装不上**。
+已修：主拷贝 `/XF aseprite-thumbnailer.dll`，DLL 单独尽力拷贝，失败就保持旧版本。
+
+### 34.6 已验证（不碰注册表）
+写了个测试程序直接 `LoadLibrary` + `DllGetClassObject` + `IInitializeWithStream`
++ `IThumbnailProvider::GetThumbnail`：64×48 的 `.aseprite` → 256×192 缩略图
+（保持比例），四角像素与画布渐变完全一致。
+**注册 / 关联 / 叠加图标**需要改注册表，留给实机测试。
+
+## §35 图层转帧（图层 → 图层转帧）
+
+`src/app/mods/commands/cmd_layers_to_frames.cpp`，一次撤销即可完全恢复。
+
+| 规则 | 理由 |
+|---|---|
+| **最下面的图层 = 第 1 帧**，往上依次 | 与 Photoshop「从图层建立帧」一致，PSD 动画就是这么画的 |
+| 时间轴选中 ≥2 个图层 → 只转换选中的；否则全部 | 与「合并图层」的选择约定一致 |
+| 分组展开成其中的图层；被清空的分组一并删除 | 原本就是空的分组不动 |
+| **隐藏图层也包含** | PSD 动画通常只显示一帧、其余全隐藏 |
+| 图层不透明度 × cel 不透明度 → 新 cel 不透明度 | 合并到单一图层后，图层级属性只能落在 cel 上 |
+| 混合模式丢弃 | cel 没有混合模式 |
+| 取每个图层**当前帧**的 cel | PSD 导入只有一帧 |
+| 瓦片图层、参考图层跳过 | 需要先转像素 / 不是作品本体 |
+
+已验证：4 层（含隐藏、分组、50% 不透明度、各自偏移）→ 4 帧顺序、位置、
+不透明度全部正确，空分组被移除，撤销后图层与帧数完全恢复；
+选中 2 层时只转换这 2 层，其余不动。
+
+## §36 「自动裁掉画布周围空白」—— 官方已有，未重复实现
+
+**精灵 → 修剪**（`AutocropSprite`，[autocrop.cpp](../src/app/util/autocrop.cpp) `get_trimmed_bounds`）：
+逐帧渲染所有可见图层，取非背景像素的并集包围盒，把画布裁到这个大小，可撤销。
+与需求完全一致，因此没有新增命令。

@@ -931,6 +931,7 @@
         <item command="FlattenLayers" text="@.layer_flatten_visible" group="layer_merge">
           <param name="visibleOnly" value="true" />
         </item>
+        <item command="LayersToFrames" text="@.layer_mods_to_frames" />
       </menu>
       <menu text="@.frame" id="frame_menu">
         <item command="FrameProperties" text="@.frame_properties">
@@ -1081,6 +1082,8 @@
            findChild() returning null and the group lookup failing are both
            handled, so dropping those items is safe. -->
       <menu text="@.help" id="help_menu">
+        <item command="FileAssociation" text="@.help_mods_file_association" />
+        <separator />
         <item command="About" text="@.help_about" group="help_about" />
       </menu>
     </menu>

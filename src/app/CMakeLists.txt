@@ -181,6 +181,8 @@ if(ENABLE_MODS)
     target_compile_definitions(app-lib PUBLIC -DMODS_TITLE_SUFFIX="${MODS_TITLE_SUFFIX}")
   endif()
   target_sources(app-lib PRIVATE
+    mods/commands/cmd_file_association.cpp
+    mods/commands/cmd_layers_to_frames.cpp
     mods/commands/cmd_palette_bars.cpp
     mods/file/psd_encoder.cpp
     mods/script/panel_api.cpp

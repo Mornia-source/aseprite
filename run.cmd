@@ -83,6 +83,7 @@ if "%RECONFIGURE%"=="1" (
       -DSKIA_LIBRARY_DIR=%SKIA%/out/Release-x64 ^
       -DSKIA_LIBRARY=%SKIA%/out/Release-x64/skia.lib ^
       -DENABLE_PSD=ON ^
+      -DENABLE_DESKTOP_INTEGRATION=ON ^
       -DENABLE_MODS=ON ^
       -DENABLE_I18N_STRINGS=OFF
     if errorlevel 1 (
@@ -106,7 +107,7 @@ if not errorlevel 1 (
 
 rem ---- build -----------------------------------------------------------------
 echo [run] building...
-ninja -C "%BUILD%" aseprite
+ninja -C "%BUILD%" aseprite aseprite-thumbnailer
 set "BUILDRC=%ERRORLEVEL%"
 if not "%BUILDRC%"=="0" (
     echo [run] ERROR: build failed ^(ninja exit code %BUILDRC%^).
