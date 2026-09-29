@@ -17,11 +17,13 @@
 #include "app/i18n/strings.h"
 #include "app/modules/gui.h"
 #include "app/tx.h"
+#include "ui/alert.h"
 #include "doc/cel.h"
 #include "doc/image.h"
 #include "doc/layer.h"
 #include "doc/sprite.h"
 
+#include <algorithm>
 #include <set>
 #include <vector>
 
@@ -86,11 +88,28 @@ std::vector<Layer*> source_layers(const Site& site)
 // Each frame takes the cel the layer has at the current frame. The source
 // layers are removed, along with any group they leave empty, so the result is
 // a conversion rather than a copy; one undo restores everything.
+//
+// The order can be flipped: "order" = "ascending" (bottom layer first, the
+// default above) or "descending" (top layer first). Without the parameter --
+// i.e. from the menu -- the user is asked; scripts pass it to skip the prompt.
 class LayersToFramesCommand : public Command {
 public:
   LayersToFramesCommand() : Command(CommandId::LayersToFrames()) {}
 
 protected:
+  enum class Order { Ask, Ascending, Descending };
+
+  void onLoadParams(const Params& params) override
+  {
+    const std::string order = params.get("order");
+    if (order == "ascending")
+      m_order = Order::Ascending;
+    else if (order == "descending")
+      m_order = Order::Descending;
+    else
+      m_order = Order::Ask;
+  }
+
   bool onEnabled(Context* ctx) override
   {
     if (!ctx->checkFlags(ContextFlags::ActiveDocumentIsWritable))
@@ -103,6 +122,15 @@ protected:
 
   void onExecute(Context* ctx) override
   {
+    bool descending = (m_order == Order::Descending);
+    if (m_order == Order::Ask && ctx->isUIAvailable()) {
+      // 1 = bottom to top, 2 = top to bottom, anything else = cancelled.
+      const int ret = ui::Alert::show(Strings::alerts_mods_layers_to_frames_order());
+      if (ret != 1 && ret != 2)
+        return;
+      descending = (ret == 2);
+    }
+
     LayerImage* target = nullptr;
     Doc* doc = nullptr;
     {
@@ -111,9 +139,11 @@ protected:
       Sprite* sprite = site.sprite();
       doc = writer.document();
 
-      const std::vector<Layer*> sources = source_layers(site);
+      std::vector<Layer*> sources = source_layers(site);
       if (sources.size() < 2)
         return;
+      if (descending)
+        std::reverse(sources.begin(), sources.end());
 
       const frame_t fromFrame = site.frame();
       Tx tx(writer, friendlyName());
@@ -173,6 +203,9 @@ protected:
     ctx->setActiveFrame(0);
     update_screen_for_document(doc);
   }
+
+private:
+  Order m_order = Order::Ask;
 };
 
 Command* CommandFactory::createLayersToFramesCommand()
