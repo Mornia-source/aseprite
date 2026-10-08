@@ -84,6 +84,7 @@ if "%RECONFIGURE%"=="1" (
       -DSKIA_LIBRARY=%SKIA%/out/Release-x64/skia.lib ^
       -DENABLE_PSD=ON ^
       -DENABLE_DESKTOP_INTEGRATION=ON ^
+      -DLAF_WITH_IME=ON ^
       -DENABLE_MODS=ON ^
       -DENABLE_I18N_STRINGS=OFF
     if errorlevel 1 (

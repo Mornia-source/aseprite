@@ -1611,3 +1611,22 @@ Windows 不允许替换**正在运行**的可执行文件，所以换文件必�
 **精灵 → 修剪**（`AutocropSprite`，[autocrop.cpp](../src/app/util/autocrop.cpp) `get_trimmed_bounds`）：
 逐帧渲染所有可见图层，取非背景像素的并集包围盒，把画布裁到这个大小，可撤销。
 与需求完全一致，因此没有新增命令。
+
+## §37 中文输入法（IME）
+
+**现象**：文本框里用中文输入法打不出字。
+
+**根因**：输入法要能组字，`WM_KEYDOWN`（`wParam == VK_PROCESSKEY`）必须经过
+`TranslateMessage` 交给输入法。[laf/os/win/event_queue.cpp](../laf/os/win/event_queue.cpp)
+只在定义了 `LAF_WITH_IME` 时才这么做 —— 而这是 laf 的 CMake 选项，**默认 OFF**。
+
+**修复**：`run.cmd` 加 `-DLAF_WITH_IME=ON`。**零源码改动**，走的是上游自带的代码路径：
+- 文本框获得焦点时，[entry.cpp](../src/ui/entry.cpp) / [textedit.cpp](../src/ui/textedit.cpp)
+  已经在调用 `setTextInput(true, 光标屏幕位置)`
+- `ime_manager.cpp` 把候选框放到光标正下方
+- 不在文本框里时（画布上），输入法按键被丢弃而不是误触快捷键
+
+> ⚠️ 与 `ENABLE_I18N_STRINGS` 一样，改 CMake 选项后需要 `run.cmd --reconfigure`。
+
+已验证：`build.ninja` 包含 `ime_manager.cpp`；`aseprite.exe` 依赖 `IMM32.dll`，
+导入 `ImmGetContext` / `ImmSetCompositionWindow`。实际输入留给实机测试。
