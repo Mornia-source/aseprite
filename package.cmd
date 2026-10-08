@@ -21,7 +21,10 @@ set "BIN=%REPO%\build\bin"
 set "DIST=%REPO%\dist"
 
 if /i "%~1"=="--nobuild" goto :nobuild
-call "%REPO%\run.cmd" --build
+rem --reconfigure: the version string is baked in at configure time, so without
+rem it a package built after a new commit still carries the old version --
+rem which the update check then compares against.
+call "%REPO%\run.cmd" --reconfigure --build
 if errorlevel 1 (
     echo [pkg] ERROR: build failed, not packaging.
     exit /b 1
