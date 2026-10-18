@@ -184,6 +184,7 @@ if(ENABLE_MODS)
     mods/commands/cmd_file_association.cpp
     mods/commands/cmd_layers_to_frames.cpp
     mods/commands/cmd_palette_bars.cpp
+    mods/commands/cmd_select_isolated_pixels.cpp
     mods/file/psd_encoder.cpp
     mods/script/panel_api.cpp
     mods/i18n/retranslate.cpp

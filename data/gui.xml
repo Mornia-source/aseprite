@@ -998,6 +998,7 @@
         <item command="InvertMask" text="@.select_inverse" group="select_simple" />
         <separator />
         <item command="MaskByColor" text="@.select_color_range" />
+        <item command="SelectIsolatedPixels" text="@.select_mods_isolated_pixels" />
         <menu text="@.select_modify" group="select_complex">
           <item command="ModifySelection" text="@.select_modify_border">
             <param name="modifier" value="border" />
