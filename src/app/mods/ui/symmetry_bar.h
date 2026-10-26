@@ -14,6 +14,8 @@
 #include "app/context_observer.h"
 #include "ui/box.h"
 
+#include "gfx/rect.h"
+
 #include <memory>
 
 namespace ui {
@@ -43,7 +45,9 @@ public:
 
   // The context bar lays its children out left to right, so this bar ends up
   // right after the last visible one. Called once that is done, it moves the
-  // bar to the right edge of `area`, unless the room before it is too short.
+  // bar to the right, lined up with the right edge of the canvas, unless the
+  // room before it is too short. `area` is the area the context bar lays its
+  // children out in.
   void alignToRightEdge(const gfx::Rect& area);
 
 protected:

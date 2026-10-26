@@ -19,12 +19,12 @@
 #include "app/ui/button_set.h"
 #include "app/ui/editor/editor.h"
 #include "app/ui/skin/skin_theme.h"
+#include "app/ui/toolbar.h"
 #include "app/ui_context.h"
 #include "ui/combobox.h"
 #include "ui/int_entry.h"
 #include "ui/label.h"
 #include "ui/menu.h"
-#include "ui/system.h"
 #include "ui/tooltips.h"
 
 #include <algorithm>
@@ -177,10 +177,27 @@ void SymmetryBar::onActiveSiteChange(const Site&)
 
 void SymmetryBar::alignToRightEdge(const gfx::Rect& area)
 {
+  // Where the context bar just put it: right after the last visible control,
+  // so it is as far left as the bar may go.
+  const int flowX = bounds().x;
+
+  // The context bar runs the full width of the middle of the window, over the
+  // tool column on the right. Line the bar up with the canvas instead, which
+  // ends where that column starts.
+  int right = area.x2();
+  if (parent() && parent()->parent()) {
+    ToolBar* toolBar = ToolBar::instance();
+    if (toolBar && toolBar->isVisible() && toolBar->parent() == parent()->parent() &&
+        toolBar->bounds().x > parent()->bounds().x) {
+      // Its real width: the size hint is larger than what it is given.
+      const int toolBarWidth = (toolBar->bounds().w > 0 ? toolBar->bounds().w :
+                                                          toolBar->sizeHint().w);
+      right -= toolBarWidth;
+    }
+  }
+
   gfx::Rect b = bounds();
-  // Some room between the bar and the edge of the window.
-  const int margin = 8 * guiscale();
-  const int x = std::max(b.x, area.x2() - margin - b.w);
+  const int x = std::max(flowX, right - b.w);
   if (x != b.x) {
     b.x = x;
     setBounds(b); // Lays the controls out again at the new place.
