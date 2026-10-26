@@ -180,6 +180,21 @@ void SymmetryBar::onActiveSiteChange(const Site&)
   refresh();
 }
 
+void SymmetryBar::onInitTheme(InitThemeEvent& ev)
+{
+  HBox::onInitTheme(ev);
+  updateMinSize();
+}
+
+// This bar is expansive so that it sits at the right edge, but a box that runs
+// out of room takes the shortfall from its expansive children first, which
+// would squeeze the controls to nothing. Never let it get smaller than they need.
+void SymmetryBar::updateMinSize()
+{
+  setMinSize(gfx::Size(0, 0));
+  setMinSize(sizeHint());
+}
+
 void SymmetryBar::retranslate()
 {
   const bool wasUpdating = m_updating;
@@ -253,6 +268,7 @@ void SymmetryBar::refresh()
                               Strings::symmetry_mods_tooltip_angle_mandala(),
                             BOTTOM);
 
+  updateMinSize();
   if (changed && parent())
     parent()->layout();
 }

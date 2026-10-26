@@ -44,9 +44,12 @@ public:
 protected:
   // ContextObserver
   void onActiveSiteChange(const Site& site) override;
+  // ui::Widget
+  void onInitTheme(ui::InitThemeEvent& ev) override;
 
 private:
   void refresh();
+  void updateMinSize();
   void applyChoice(int choice);
   void applyCount(int count);
   void applyAngle(int angle);
