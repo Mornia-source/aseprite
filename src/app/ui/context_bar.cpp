@@ -2104,8 +2104,9 @@ ContextBar::ContextBar(TooltipManager* tooltipManager, ColorBar* colorBar)
   addChild(m_sliceFields = new SliceFields);
   addChild(m_fontSelector = new FontSelector(this));
 #ifdef ENABLE_MODS
-  // Last, so it sits at the far right: the filler takes all the spare room.
-  addChild(new BoxFiller());
+  // Last, so it follows the other controls; onResize() then moves it to the
+  // right edge. (A filler to push it there does not work: this bar reports a
+  // width of 0 as its size hint, so the filler would be given all of it.)
   addChild(new mods::SymmetryBar(tooltipManager));
 #endif
 
@@ -2161,6 +2162,19 @@ void ContextBar::onSizeHint(SizeHintEvent& ev)
 {
   auto theme = SkinTheme::get(this);
   ev.setSizeHint(gfx::Size(0, theme->dimensions.contextBarHeight()));
+}
+
+void ContextBar::onResize(ui::ResizeEvent& ev)
+{
+  ui::HBox::onResize(ev);
+
+#ifdef ENABLE_MODS
+  // MODS: seam S34 -- the symmetry controls sit at the right end.
+  for (ui::Widget* child : children()) {
+    if (auto* bar = dynamic_cast<mods::SymmetryBar*>(child))
+      bar->alignToRightEdge(childrenBounds());
+  }
+#endif
 }
 
 void ContextBar::onToolSetOpacity(const int& newOpacity)

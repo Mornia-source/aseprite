@@ -34,22 +34,24 @@ class SymmetryOptionsButton;
 //
 // It replaces the built-in symmetry buttons, which only show up for some tools
 // and have no room for modes that take parameters. It is always visible and
-// pushed against the right edge by a filler placed before it in the context bar.
+// moved to the right edge of the context bar when that is laid out.
 class SymmetryBar : public ui::HBox,
                     public ContextObserver {
 public:
   explicit SymmetryBar(ui::TooltipManager* tooltipManager);
   ~SymmetryBar();
 
+  // The context bar lays its children out left to right, so this bar ends up
+  // right after the last visible one. Called once that is done, it moves the
+  // bar to the right edge of `area`, unless the room before it is too short.
+  void alignToRightEdge(const gfx::Rect& area);
+
 protected:
   // ContextObserver
   void onActiveSiteChange(const Site& site) override;
-  // ui::Widget
-  void onInitTheme(ui::InitThemeEvent& ev) override;
 
 private:
   void refresh();
-  void updateMinSize();
   void applyChoice(int choice);
   void applyCount(int count);
   void applyAngle(int angle);

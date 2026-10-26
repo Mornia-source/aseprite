@@ -1698,7 +1698,7 @@ Windows 不允许替换**正在运行**的可执行文件，所以换文件必�
 | S31 | [ui/editor/tool_loop_impl.cpp](../src/app/ui/editor/tool_loop_impl.cpp) | 建 Symmetry 对象时用 `symmetry_mode_for_tools()` |
 | S32 | [ui/editor/editor.cpp](../src/app/ui/editor/editor.cpp) | 官方参考线用 `symmetry_mode_for_guides()`；块末尾画我们的参考线 |
 | S33 | [ui/editor/standby_state.cpp](../src/app/ui/editor/standby_state.cpp) | 拖动手柄的判断用 `symmetry_mode_for_tools()` |
-| S34 | [ui/context_bar.cpp](../src/app/ui/context_bar.cpp) | 官方对称按钮常隐藏；末尾加 `mods::SymmetryBar` |
+| S34 | [ui/context_bar.cpp](../src/app/ui/context_bar.cpp) + context_bar.h | 官方对称按钮常隐藏；末尾加 `mods::SymmetryBar`；新增 `onResize()` 把它移到右边缘 |
 | S35 | [ui/editor/standby_state.cpp](../src/app/ui/editor/standby_state.cpp) | 中心手柄：生成、按下、悬停光标（3 处） |
 
 文件在 `src/app/mods/symmetry/`（数学、设置、笔画生成、参考线、拖动中心状态）和
@@ -1719,8 +1719,14 @@ Windows 不允许替换**正在运行**的可执行文件，所以换文件必�
 比较时跳过了官方自己有取整误差的情形（对角镜像在两条轴一条在整数线、一条在半整数线上，
 以及中间结果落到负坐标时官方向零取整），那些情形我们的结果是几何上精确的。
 
-**需要在界面里测的**：工具栏布局和右对齐、下拉框切换、份数/角度输入、参考线的显示、
-中心手柄拖动、切换语言后控件文字。
+**界面截图已确认**（独立配置目录启动，截窗口）：下拉框在工具栏最右端；曼陀罗显示份数/角度/「...」，画布上有镜像线、中心手柄和边缘手柄；螺旋显示螺旋曲线；中文界面文字正常。
+**仍需手动测**：下拉框切换、份数/角度输入、中心手柄拖动、切换语言后控件文字。
+
+### 39.5.1 踩过的坑：为什么不能用「可伸缩占位」把控件推到右边
+`ContextBar::onSizeHint()` 把宽度提示固定为 0。Box 布局把剩余宽度 = 总宽 - 提示宽度，所以任何可伸缩子控件都会被分到**整条栏的宽度**，排在它后面的控件被推到栏外面，什么都看不到。
+（实测日志：占位 337 到 1003，对称控件落在 x=1003，而栏只覆盖 80 到 742。）
+改法：对称控件不可伸缩，`ContextBar::onResize()` 布局完成后调用 `alignToRightEdge()` 把它移到右边缘。
+另一个坑：裸的 `Widget(kGenericWidget)` 会把自己画成黑色，要占位用 `ui::BoxFiller`。
 
 ### 39.6 已知限制
 - 旋转角不是 90° 的整数倍时，笔刷**图案**不跟着转（位置是对的）；圆形/方形普通笔刷看不出区别

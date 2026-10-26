@@ -113,6 +113,7 @@ public:
 protected:
   void onInitTheme(ui::InitThemeEvent& ev) override;
   void onSizeHint(ui::SizeHintEvent& ev) override;
+  void onResize(ui::ResizeEvent& ev) override;
   void onToolSetOpacity(const int& newOpacity);
   void onToolSetFreehandAlgorithm();
   void onToolSetContiguous();

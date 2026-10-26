@@ -174,17 +174,14 @@ void SymmetryBar::onActiveSiteChange(const Site&)
   refresh();
 }
 
-void SymmetryBar::onInitTheme(InitThemeEvent& ev)
+void SymmetryBar::alignToRightEdge(const gfx::Rect& area)
 {
-  HBox::onInitTheme(ev);
-  updateMinSize();
-}
-
-// Never let the bar get smaller than its controls need.
-void SymmetryBar::updateMinSize()
-{
-  setMinSize(gfx::Size(0, 0));
-  setMinSize(sizeHint());
+  gfx::Rect b = bounds();
+  const int x = std::max(b.x, area.x2() - b.w);
+  if (x != b.x) {
+    b.x = x;
+    setBounds(b); // Lays the controls out again at the new place.
+  }
 }
 
 void SymmetryBar::retranslate()
@@ -260,7 +257,6 @@ void SymmetryBar::refresh()
                               Strings::symmetry_mods_tooltip_angle_mandala(),
                             BOTTOM);
 
-  updateMinSize();
   if (changed && parent())
     parent()->layout();
 }
