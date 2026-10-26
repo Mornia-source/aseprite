@@ -138,9 +138,8 @@ SymmetryBar::SymmetryBar(TooltipManager* tooltipManager) : m_tooltips(tooltipMan
   setExpansive(true);
 
   // Takes all the spare room, which pushes the controls to the right edge.
-  auto* filler = new Widget(kGenericWidget);
-  filler->setExpansive(true);
-  addChild(filler);
+  // Not a bare Widget: a generic widget paints itself black.
+  addChild(new BoxFiller());
 
   addChild(m_mode = new ComboBox());
   for (int i = 0; i < kChoiceCount; ++i)
