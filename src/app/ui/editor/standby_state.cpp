@@ -38,6 +38,10 @@
 #include "app/ui/editor/moving_selection_state.h"
 #include "app/ui/editor/moving_slice_state.h"
 #include "app/ui/editor/moving_symmetry_state.h"
+#ifdef ENABLE_MODS
+  #include "app/mods/symmetry/moving_symmetry_center_state.h"
+  #include "app/mods/symmetry/symmetry_settings.h"
+#endif
 #include "app/ui/editor/pivot_helpers.h"
 #include "app/ui/editor/pixels_movement.h"
 #include "app/ui/editor/scrolling_state.h"
@@ -133,6 +137,12 @@ bool StandbyState::onMouseDown(Editor* editor, MouseMessage* msg)
   if (m_decorator->getSymmetryHandles(editor, handles)) {
     for (const auto& handle : handles) {
       if (handle.bounds.contains(msg->position())) {
+#ifdef ENABLE_MODS
+        if (handle.align == (CENTER | MIDDLE)) {
+          editor->setState(EditorStatePtr(new mods::MovingSymmetryCenterState(editor, msg)));
+          return true;
+        }
+#endif
         auto mode = (handle.align & (TOP | BOTTOM) ? app::gen::SymmetryMode::HORIZONTAL :
                                                      app::gen::SymmetryMode::VERTICAL);
         bool horz = (mode == app::gen::SymmetryMode::HORIZONTAL);
@@ -980,6 +990,9 @@ bool StandbyState::Decorator::onSetCursor(tools::Ink* ink,
           case BOTTOM: editor->showMouseCursor(kSizeWECursor); break;
           case LEFT:
           case RIGHT:  editor->showMouseCursor(kSizeNSCursor); break;
+#ifdef ENABLE_MODS
+          case CENTER | MIDDLE: editor->showMouseCursor(kMoveCursor); break;
+#endif
         }
         return true;
       }
@@ -1034,7 +1047,13 @@ bool StandbyState::Decorator::getSymmetryHandles(Editor* editor, Handles& handle
   if (editor->isActive() && editor->editorFlags() & Editor::kShowSymmetryLine &&
       Preferences::instance().symmetryMode.enabled()) {
     const auto& symmetry = Preferences::instance().document(editor->document()).symmetry;
+#ifdef ENABLE_MODS
+    // MODS: seam S33 -- our modes use the same two draggable lines. See
+    // docs/MODDING_NOTES.md
+    auto mode = mods::symmetry_mode_for_tools(symmetry.mode());
+#else
     auto mode = symmetry.mode();
+#endif
     if (mode != app::gen::SymmetryMode::NONE) {
       gfx::Rect mainTileBounds(editor->mainTilePosition(), editor->sprite()->bounds().size());
       gfx::Rect canvasBounds(gfx::Point(0, 0), editor->canvasSize());
@@ -1083,6 +1102,21 @@ bool StandbyState::Decorator::getSymmetryHandles(Editor* editor, Handles& handle
         handles.push_back(
           Handle(RIGHT, gfx::Rect(int(pt2.x), int(pt2.y), part->width(), part->height())));
       }
+
+#ifdef ENABLE_MODS
+      // MODS: seam S35 -- a handle where the two lines cross, to move both at
+      // once. First in the list so it wins where it overlaps another handle.
+      if (mods::symmetry_mods_active()) {
+        const gfx::PointF c = editor->editorToScreenF(
+          gfx::PointF(mainTileBounds.x + symmetry.xAxis(), mainTileBounds.y + symmetry.yAxis()));
+        handles.insert(handles.begin(),
+                       Handle(CENTER | MIDDLE,
+                              gfx::Rect(int(c.x - part->width() / 2),
+                                        int(c.y - part->height() / 2),
+                                        part->width(),
+                                        part->height())));
+      }
+#endif
 
       return true;
     }

@@ -25,6 +25,7 @@
 // MODS: seam S15 -- see docs/MODDING_NOTES.md
 #ifdef ENABLE_MODS
   #include "app/mods/tools/tool_opacity.h"
+  #include "app/mods/ui/symmetry_bar.h"
 #endif
 #include "app/match_words.h"
 #include "app/pref/preferences.h"
@@ -2091,10 +2092,20 @@ ContextBar::ContextBar(TooltipManager* tooltipManager, ColorBar* colorBar)
   m_freehandBox->addChild(m_freehandAlgo = new FreehandAlgorithmField());
 
   addChild(m_symmetry = new SymmetryField());
+#ifdef ENABLE_MODS
+  // MODS: seam S34 -- the built-in symmetry buttons are replaced by
+  // mods::SymmetryBar, which is always visible at the right end of the bar and
+  // covers every built-in mode too. See docs/MODDING_NOTES.md
+  m_symmetry->setVisible(false);
+#else
   m_symmetry->setVisible(pref.symmetryMode.enabled());
+#endif
 
   addChild(m_sliceFields = new SliceFields);
   addChild(m_fontSelector = new FontSelector(this));
+#ifdef ENABLE_MODS
+  addChild(new mods::SymmetryBar(tooltipManager)); // Last, so it sits at the far right.
+#endif
 
   setupTooltips(tooltipManager);
 
@@ -2460,8 +2471,12 @@ void ContextBar::updateForTool(tools::Tool* tool)
   m_transformation->setVisible(false);
   m_selectBoxHelp->setVisible(false);
 
+#ifdef ENABLE_MODS
+  m_symmetry->setVisible(false); // MODS: seam S34, see the constructor.
+#else
   m_symmetry->setVisible(Preferences::instance().symmetryMode.enabled() &&
                          (isPaint || isEffect || hasSelectOptions));
+#endif
   m_symmetry->updateWithCurrentDocument();
 
   m_sliceFields->setVisible(isSlice);

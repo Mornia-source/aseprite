@@ -32,6 +32,10 @@
 #include "app/tools/controller.h"
 #include "app/tools/ink.h"
 #include "app/tools/symmetry.h"
+#ifdef ENABLE_MODS
+  #include "app/mods/symmetry/symmetry_guides.h"
+  #include "app/mods/symmetry/symmetry_settings.h"
+#endif
 #include "app/tools/tool.h"
 #include "app/tools/tool_box.h"
 #include "app/ui/color_bar.h"
@@ -880,11 +884,20 @@ void Editor::drawOneSpriteUnclippedRect(ui::Graphics* g,
       // Symmetry mode
       if (isActive() && (m_flags & Editor::kShowSymmetryLine) &&
           Preferences::instance().symmetryMode.enabled()) {
-        const int symmetryButtons = int(m_docPref.symmetry.mode());
+#ifdef ENABLE_MODS
+        // MODS: seam S32 -- while one of our modes is active the built-in
+        // guides stay hidden and ours are drawn instead (see the end of this
+        // block). See docs/MODDING_NOTES.md
+        const gen::SymmetryMode docSymMode = mods::symmetry_mode_for_guides(
+          m_docPref.symmetry.mode());
+#else
+        const gen::SymmetryMode docSymMode = m_docPref.symmetry.mode();
+#endif
+        const int symmetryButtons = int(docSymMode);
         // Symmetry::resolveMode is to calculate the right symmetry
         // mode. This is necessary because some symmetry settings
         // do not make sense and should be forced to 'ALL'
-        const int mode = int(tools::Symmetry::resolveMode(m_docPref.symmetry.mode()));
+        const int mode = int(tools::Symmetry::resolveMode(docSymMode));
         const gfx::Color color = color_utils::color_for_ui(m_docPref.grid.color());
         const gfx::Color semiTransparentColor =
           gfx::rgba(rgba_getr(color), rgba_getg(color), rgba_getb(color), rgba_geta(color) / 4);
@@ -955,6 +968,17 @@ void Editor::drawOneSpriteUnclippedRect(ui::Graphics* g,
             topLeft,
             bottomRight);
         }
+#ifdef ENABLE_MODS
+        mods::draw_symmetry_guides(g,
+                                   enclosingRect,
+                                   m_proj,
+                                   m_sprite->width(),
+                                   m_sprite->height(),
+                                   m_docPref.symmetry.xAxis(),
+                                   m_docPref.symmetry.yAxis(),
+                                   color,
+                                   semiTransparentColor);
+#endif
       }
     }
   }

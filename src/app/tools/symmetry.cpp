@@ -10,6 +10,10 @@
 
 #include "app/tools/symmetry.h"
 
+#ifdef ENABLE_MODS
+  #include "app/mods/symmetry/symmetry_strokes.h"
+#endif
+
 #include "app/tools/point_shape.h"
 #include "app/tools/tool_loop.h"
 #include "doc/brush.h"
@@ -18,6 +22,14 @@ namespace app { namespace tools {
 
 void Symmetry::generateStrokes(const Stroke& stroke, Strokes& strokes, ToolLoop* loop)
 {
+#ifdef ENABLE_MODS
+  // MODS: seam S30 -- center / radial / mandala / spiral symmetry. Handled
+  // entirely in the mods module; falls through when none of them is active.
+  // See docs/MODDING_NOTES.md
+  if (mods::generate_symmetry_strokes(stroke, strokes, loop, m_x, m_y))
+    return;
+#endif
+
   Stroke stroke2;
   strokes.push_back(stroke);
   const gen::SymmetryMode symmetryMode = tools::Symmetry::resolveMode(loop->getSymmetry()->mode());

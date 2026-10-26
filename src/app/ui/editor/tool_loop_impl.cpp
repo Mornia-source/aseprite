@@ -31,6 +31,9 @@
 #include "app/tools/intertwine.h"
 #include "app/tools/point_shape.h"
 #include "app/tools/symmetry.h"
+#ifdef ENABLE_MODS
+  #include "app/mods/symmetry/symmetry_settings.h"
+#endif
 #include "app/tools/tool.h"
 #include "app/tools/tool_box.h"
 #include "app/tools/tool_loop.h"
@@ -258,8 +261,15 @@ public:
 
     // Symmetry mode
     if (Preferences::instance().symmetryMode.enabled()) {
-      if (m_docPref.symmetry.mode() != gen::SymmetryMode::NONE)
-        m_symmetry.reset(new tools::Symmetry(m_docPref.symmetry.mode(),
+#ifdef ENABLE_MODS
+      // MODS: seam S31 -- our modes need a Symmetry object too; see
+      // docs/MODDING_NOTES.md
+      const gen::SymmetryMode symMode = mods::symmetry_mode_for_tools(m_docPref.symmetry.mode());
+#else
+      const gen::SymmetryMode symMode = m_docPref.symmetry.mode();
+#endif
+      if (symMode != gen::SymmetryMode::NONE)
+        m_symmetry.reset(new tools::Symmetry(symMode,
                                              m_docPref.symmetry.xAxis(),
                                              m_docPref.symmetry.yAxis()));
     }

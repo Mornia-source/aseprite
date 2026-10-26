@@ -133,6 +133,10 @@ rem ============================================================================
 >>"%~1" echo   ship a real translation and get their script from a font, so the
 >>"%~1" echo   words are ordinary English or Norwegian, just unreadable.
 >>"%~1" echo   Edit ^> Preferences ^> General ^> Language.
+>>"%~1" echo * Symmetry drawing, always at the right end of the tool options bar:
+>>"%~1" echo   horizontal, vertical, diagonals, plus center (180 degrees), radial,
+>>"%~1" echo   mandala and spiral with a settable count and angle. The guide lines can
+>>"%~1" echo   be dragged, and the handle where they cross moves both at once.
 >>"%~1" echo * Scripts can dock a panel in the main window with app.panel{}.
 >>"%~1" echo * Layer ^> Layers to Frames: the bottom layer becomes frame 1, the
 >>"%~1" echo   next one up frame 2, and so on.

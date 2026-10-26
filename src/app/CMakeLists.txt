@@ -187,11 +187,17 @@ if(ENABLE_MODS)
     mods/commands/cmd_select_isolated_pixels.cpp
     mods/file/psd_encoder.cpp
     mods/script/panel_api.cpp
+    mods/symmetry/moving_symmetry_center_state.cpp
+    mods/symmetry/symmetry_guides.cpp
+    mods/symmetry/symmetry_math.cpp
+    mods/symmetry/symmetry_settings.cpp
+    mods/symmetry/symmetry_strokes.cpp
     mods/i18n/retranslate.cpp
     mods/tools/tool_opacity.cpp
     mods/ui/layer_thumbnail.cpp
     mods/ui/palette_bars.cpp
     mods/ui/plugin_panel.cpp
+    mods/ui/symmetry_bar.cpp
     mods/ui/conlang_font.cpp)
   # The updater half of the mods module only exists when the official updater
   # is built at all -- it hangs off its "new version" notification.
