@@ -135,12 +135,6 @@ protected:
 
 SymmetryBar::SymmetryBar(TooltipManager* tooltipManager) : m_tooltips(tooltipManager)
 {
-  setExpansive(true);
-
-  // Takes all the spare room, which pushes the controls to the right edge.
-  // Not a bare Widget: a generic widget paints itself black.
-  addChild(new BoxFiller());
-
   addChild(m_mode = new ComboBox());
   for (int i = 0; i < kChoiceCount; ++i)
     m_mode->addItem(choice_text(i));
@@ -186,9 +180,7 @@ void SymmetryBar::onInitTheme(InitThemeEvent& ev)
   updateMinSize();
 }
 
-// This bar is expansive so that it sits at the right edge, but a box that runs
-// out of room takes the shortfall from its expansive children first, which
-// would squeeze the controls to nothing. Never let it get smaller than they need.
+// Never let the bar get smaller than its controls need.
 void SymmetryBar::updateMinSize()
 {
   setMinSize(gfx::Size(0, 0));

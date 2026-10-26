@@ -2104,7 +2104,9 @@ ContextBar::ContextBar(TooltipManager* tooltipManager, ColorBar* colorBar)
   addChild(m_sliceFields = new SliceFields);
   addChild(m_fontSelector = new FontSelector(this));
 #ifdef ENABLE_MODS
-  addChild(new mods::SymmetryBar(tooltipManager)); // Last, so it sits at the far right.
+  // Last, so it sits at the far right: the filler takes all the spare room.
+  addChild(new BoxFiller());
+  addChild(new mods::SymmetryBar(tooltipManager));
 #endif
 
   setupTooltips(tooltipManager);

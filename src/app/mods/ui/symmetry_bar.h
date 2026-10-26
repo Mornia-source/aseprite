@@ -34,7 +34,7 @@ class SymmetryOptionsButton;
 //
 // It replaces the built-in symmetry buttons, which only show up for some tools
 // and have no room for modes that take parameters. It is always visible and
-// pushed against the right edge by an expansive filler.
+// pushed against the right edge by a filler placed before it in the context bar.
 class SymmetryBar : public ui::HBox,
                     public ContextObserver {
 public:
