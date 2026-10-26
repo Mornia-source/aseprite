@@ -24,6 +24,7 @@
 #include "ui/int_entry.h"
 #include "ui/label.h"
 #include "ui/menu.h"
+#include "ui/system.h"
 #include "ui/tooltips.h"
 
 #include <algorithm>
@@ -177,7 +178,9 @@ void SymmetryBar::onActiveSiteChange(const Site&)
 void SymmetryBar::alignToRightEdge(const gfx::Rect& area)
 {
   gfx::Rect b = bounds();
-  const int x = std::max(b.x, area.x2() - b.w);
+  // Some room between the bar and the edge of the window.
+  const int margin = 8 * guiscale();
+  const int x = std::max(b.x, area.x2() - margin - b.w);
   if (x != b.x) {
     b.x = x;
     setBounds(b); // Lays the controls out again at the new place.
